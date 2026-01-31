@@ -1,0 +1,10 @@
+[package]
+name = "PiWatch-agent"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[[bin]]
+name = "PiWatch-agent"
+path = "src/main.rs"

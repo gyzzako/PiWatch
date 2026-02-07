@@ -5,5 +5,5 @@ pub struct RegisterPayload {
     pub node_id: String,
     pub hostname: String,
     pub agent_version: String,
-    pub ipv4: String,
+    pub ipv4: Option<String>,
 }

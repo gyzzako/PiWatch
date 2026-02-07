@@ -4,7 +4,26 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+core = { path = "../core" }
+tokio = { version = "1", features = ["full"] }
+rtnetlink = "0.20"
+netlink-packet-route = "0.28"
+netlink-packet-core = "0.8"
+futures = "0.3"
+reqwest = { version = "0.13", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hostname = "0.3"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1.0"
+netlink-sys = "0.8"
+futures-channel = "0.3"
 
 [[bin]]
 name = "PiWatch-agent"
 path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

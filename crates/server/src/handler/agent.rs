@@ -19,7 +19,7 @@ pub(crate) async fn register(
         AgentState {
             hostname: req.hostname,
             agent_version: req.agent_version,
-            ipv4: req.ipv4,
+            ipv4: req.ipv4.unwrap_or_else(|| "".to_string()),
             registered_at: SystemTime::now(),
             last_seen: Instant::now(),
         },
@@ -30,13 +30,20 @@ pub(crate) async fn update_ip(
     State(state): State<AppState>,
     Json(req): Json<IpUpdatePayload>,
 ) {
+    if req.ipv4.is_none() {
+        warn!("UPDATE received with no IPv4 for node {}", req.node_id);
+        return;
+    }
+
     if let Some(mut agent) = state.agents.get_mut(&req.node_id) {
+        let lastest_ip = &req.ipv4.unwrap();
+
         agent.last_seen = Instant::now();
-        agent.ipv4 = req.ipv4.clone();
+        agent.ipv4 = lastest_ip.to_string();
 
         info!(
             "UPDATE node={} event={} ip={:?}",
-            req.node_id, req.event, req.ipv4,
+            req.node_id, req.event, *lastest_ip,
         );
     } else {
         warn!("UPDATE from unknown node {}", req.node_id);

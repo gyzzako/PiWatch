@@ -110,7 +110,6 @@ impl IpChangeListener {
 
             // TODO: specific endpoint for IP update/deletion
             if let Err(e) = self.api.update_ip(
-                "node_id_placeholder".to_string(),
                 self.last_ip.clone(),
                 event.to_string(),
             ).await {

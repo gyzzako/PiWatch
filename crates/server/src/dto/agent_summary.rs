@@ -5,7 +5,6 @@ use std::{
 
 #[derive(Serialize)]
 pub(crate) struct AgentSummary {
-    pub node_id: String,
     pub hostname: String,
     pub agent_version: String,
     pub ipv4: String,

@@ -1,6 +1,8 @@
 mod model;
 mod handler;
 mod dto;
+mod pihole;
+
 use axum::{
     routing::{get, post},
     Router
@@ -20,13 +22,17 @@ use crate::{
     }, 
     model::state::AppState
 };
+use pihole::client::PiholeClient;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    let http_client = reqwest::Client::new();
+
     let state = AppState {
         agents: Arc::new(DashMap::new()),
+        pihole_client: Arc::new(PiholeClient::new(http_client)),
     };
 
     // Background cleanup / logging task
@@ -44,6 +50,7 @@ async fn main() {
         });
     }
 
+    // TODO: API versioning
     let app = Router::new()
         .route("/register", post(register))
         .route("/update", post(update_ip))
@@ -52,6 +59,7 @@ async fn main() {
         .route("/stats", get(stats))
         .with_state(state);
 
+    // TODO: move to config
     let port = 8080;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &port.to_string()).await.unwrap();
     info!("Central server listening on http://localhost:{}", port);

@@ -1,51 +1,67 @@
 use core::dto::{register_payload::RegisterPayload, update_id::IpUpdatePayload};
 use crate::AppState;
+use crate::model::state::AgentState;
 use axum::{
     extract::State,
     Json,
 };
-use tracing::{info, warn};
-use crate::model::state::AgentState;
+use tracing::{error, info, warn};
 use std::time::{SystemTime, Instant};
 
-pub(crate) async fn register(
-    State(state): State<AppState>,
-    Json(req): Json<RegisterPayload>,
-) {
-    info!("REGISTER node_id={} hostname={}", req.node_id, req.hostname);
+// TODO: return proper response
+pub(crate) async fn register(State(state): State<AppState>, Json(req): Json<RegisterPayload>) {
+    if req.ipv4.is_none() {
+        warn!("REGISTER received with no IPv4 for hostname {}", req.hostname);
+        return;
+    }
+    
+    let ip = req.ipv4.unwrap();
+    
+    if let Err(e) = state.pihole_client.put_ip(&req.hostname, &ip).await {
+        error!("Failed to register IP for hostname={}: {}", req.hostname, e);
+        return;
+    };
 
+    // TODO: move to DB
     state.agents.insert(
-        req.node_id,
+        req.hostname.to_string(),
         AgentState {
-            hostname: req.hostname,
+            hostname: req.hostname.to_string(),
             agent_version: req.agent_version,
-            ipv4: req.ipv4.unwrap_or_else(|| "".to_string()),
+            ipv4: ip,
             registered_at: SystemTime::now(),
             last_seen: Instant::now(),
         },
     );
+
+    info!("REGISTER hostname={}", req.hostname);
 }
 
-pub(crate) async fn update_ip(
-    State(state): State<AppState>,
-    Json(req): Json<IpUpdatePayload>,
-) {
+pub(crate) async fn update_ip(State(state): State<AppState>, Json(req): Json<IpUpdatePayload>) {
     if req.ipv4.is_none() {
-        warn!("UPDATE received with no IPv4 for node {}", req.node_id);
+        warn!("UPDATE received with no IPv4 for hostname {}", req.hostname);
         return;
     }
 
-    if let Some(mut agent) = state.agents.get_mut(&req.node_id) {
-        let lastest_ip = &req.ipv4.unwrap();
+    // TODO: handle delete
+    if req.event != "add" {
+        warn!("Skipping UPDATE received with event={} for hostname {}", req.event, req.hostname);
+        return;
+    }
 
+    let ip = req.ipv4.unwrap();
+    
+    if let Err(e) = state.pihole_client.put_ip(&req.hostname, &ip).await {
+        error!("Failed to register IP for hostname {}: {}", req.hostname, e);
+        return;
+    };
+
+    if let Some(mut agent) = state.agents.get_mut(&req.hostname) {
         agent.last_seen = Instant::now();
-        agent.ipv4 = lastest_ip.to_string();
+        agent.ipv4 = ip.to_string();
 
-        info!(
-            "UPDATE node={} event={} ip={:?}",
-            req.node_id, req.event, *lastest_ip,
-        );
+        info!("UPDATE hostname={} event={} ip={}", req.hostname, req.event, ip);
     } else {
-        warn!("UPDATE from unknown node {}", req.node_id);
+        warn!("UPDATE from unknown hostname {}", req.hostname);
     }
 }

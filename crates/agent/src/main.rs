@@ -1,4 +1,3 @@
-mod config;
 mod network;
 mod api_client;
 
@@ -6,22 +5,14 @@ use std::{
     time::Duration
 };
 use tokio::time::sleep;
-use crate::{config::load_or_create_node_id, api_client::ApiClient};
+use crate::{api_client::ApiClient};
 use crate::network::IpChangeListener;
 use anyhow::Result;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let node_id = match load_or_create_node_id() {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("Failed to load or create node ID: {}", e);
-            return Err(e.into());
-        }
-    };
-
     let client = reqwest::Client::new();
-    let api = ApiClient::new(client.clone());
+    let api = ApiClient::new(client.clone())?;
     let ip_listener: IpChangeListener = match IpChangeListener::init(api.clone()).await {
         Ok(listener) => listener,
         Err(e) => {
@@ -35,7 +26,7 @@ async fn main() -> Result<()> {
         None => None,
     };
 
-    match api.register_agent(node_id.clone(), ip).await {
+    match api.register_agent(ip).await {
         Ok(_) => println!("Successfully registered agent."),
         Err(e) => {
             eprintln!("Failed to register agent: {}", e);
@@ -48,7 +39,7 @@ async fn main() -> Result<()> {
         let api = api.clone();
         tokio::spawn(async move {
             loop {
-                match api.send_heartbeat(node_id.clone()).await {
+                match api.send_heartbeat().await {
                     Ok(_) => (),
                     Err(e) => eprintln!("Failed to send heartbeat: {}", e),
                 }

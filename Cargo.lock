@@ -9,11 +9,13 @@ dependencies = [
  "axum",
  "core",
  "dashmap",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

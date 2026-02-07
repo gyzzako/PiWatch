@@ -1,5 +1,6 @@
+use crate::pihole::client::PiholeClient;
 use std::{
-    time::{SystemTime, Instant},
+    time::{Instant, SystemTime}
 };
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -7,6 +8,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub agents: Arc<Agents>,
+    pub pihole_client: Arc<PiholeClient>,
 }
 
 pub(crate) type Agents = DashMap<String, AgentState>;

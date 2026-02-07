@@ -11,9 +11,9 @@ pub(crate) async fn heartbeat(
     State(state): State<AppState>,
     Json(req): Json<Heartbeat>,
 ) {
-    if let Some(mut agent) = state.agents.get_mut(&req.node_id) {
+    if let Some(mut agent) = state.agents.get_mut(&req.hostname) {
         agent.last_seen = Instant::now();
     } else {
-        warn!("HEARTBEAT from unknown node {}", req.node_id);
+        warn!("HEARTBEAT from unknown node {}", req.hostname);
     }
 }

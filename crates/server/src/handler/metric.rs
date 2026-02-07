@@ -14,7 +14,6 @@ pub(crate) async fn list_agents(
         .map(|entry| {
             let last_seen = entry.last_seen.elapsed().as_secs();
             AgentSummary {
-                node_id: entry.key().clone(),
                 hostname: entry.hostname.clone(),
                 agent_version: entry.agent_version.clone(),
                 ipv4: entry.ipv4.clone(),

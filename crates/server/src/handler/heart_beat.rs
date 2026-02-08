@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     Json,
 };
-use tracing::warn;
+use core::logging::warn;
 use core::dto::heart_beat::Heartbeat;
 use std::time::Instant;
 use crate::model::state::AppState;

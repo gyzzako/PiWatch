@@ -5,7 +5,7 @@ use axum::{
     extract::State,
     Json,
 };
-use tracing::{error, info, warn};
+use core::logging::{error, info, warn};
 use std::time::{SystemTime, Instant};
 
 // TODO: return proper response

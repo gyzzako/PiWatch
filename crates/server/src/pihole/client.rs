@@ -1,5 +1,6 @@
 use tokio::sync::Mutex;
 
+use core::logging::{debug, info, trace};
 use url::{Url, form_urlencoded};
 use crate::pihole::{dto::AuthResponse};
 
@@ -24,6 +25,8 @@ impl PiholeClient {
         let is_auth_valid: bool = self.is_auth_valid().await?;
 
         if !is_auth_valid {
+            debug!("Creating new Pihole auth session");
+
             let auth_response: AuthResponse = self.create_auth().await?;
 
             if !auth_response.session.valid || auth_response.session.sid.is_none() {
@@ -37,6 +40,7 @@ impl PiholeClient {
         let api_path = format!("{}/{}", self.api_path("config/dns/hosts"), kv);
 
         let url = Url::parse(&api_path)?;
+        trace!("Update IP URL: {}", &url);
 
         let sid: String = self.get_current_sid().await.ok_or("Unexpected authentication failure")?;
 
@@ -48,6 +52,7 @@ impl PiholeClient {
             .await {
                 Ok(resp) => {
                     if resp.status().is_success() {
+                        info!("Successfully updated IP for {} to {}", hostname, ip);
                         Ok(())
                     } else {
                         Err(format!("Failed to put IP: HTTP {}", resp.status()).into())

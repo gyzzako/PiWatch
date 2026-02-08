@@ -1,19 +1,27 @@
 mod network;
 mod api_client;
+mod config;
 
-use std::{
-    time::Duration
-};
+use std::{time::Duration};
 use tokio::time::sleep;
+use crate::config::load_config;
 use crate::{api_client::ApiClient};
 use crate::network::IpChangeListener;
 use anyhow::Result;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    let config = match load_config() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load configuration: {}", e);
+            return Err(anyhow::anyhow!(e.to_string()));
+        }
+    };
+
     let client = reqwest::Client::new();
-    let api = ApiClient::new(client.clone())?;
-    let ip_listener: IpChangeListener = match IpChangeListener::init(api.clone()).await {
+    let api = ApiClient::new(client.clone(), &config.piwatch_server_url)?;
+    let ip_listener: IpChangeListener = match IpChangeListener::init(api.clone(), &config.listening_interface).await {
         Ok(listener) => listener,
         Err(e) => {
             eprintln!("Failed to create IP change listener: {}", e);

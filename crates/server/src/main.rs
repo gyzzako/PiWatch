@@ -2,6 +2,7 @@ mod model;
 mod handler;
 mod dto;
 mod pihole;
+mod config;
 
 use axum::{
     routing::{get, post},
@@ -14,25 +15,31 @@ use std::{
 };
 use tracing::{info, warn};
 use crate::{
-    handler::{
+    config::load_config, handler::{
         agent::{register, update_ip},
         heart_beat::heartbeat,
-        metric::list_agents,
-        metric::stats,
-    }, 
-    model::state::AppState
+        metric::{list_agents, stats},
+    }, model::state::AppState
 };
 use pihole::client::PiholeClient;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
+
+    let config = match load_config() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load configuration: {}", e);
+            return Err(e.into());
+        }
+    };
 
     let http_client = reqwest::Client::new();
 
     let state = AppState {
         agents: Arc::new(DashMap::new()),
-        pihole_client: Arc::new(PiholeClient::new(http_client)),
+        pihole_client: Arc::new(PiholeClient::new(http_client, &config.pihole_url, &config.pihole_pass)),
     };
 
     // Background cleanup / logging task
@@ -59,10 +66,10 @@ async fn main() {
         .route("/stats", get(stats))
         .with_state(state);
 
-    // TODO: move to config
-    let port = 8080;
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &port.to_string()).await.unwrap();
-    info!("Central server listening on http://localhost:{}", port);
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &config.bind_port.to_string()).await.unwrap();
+    info!("Central server listening on http://localhost:{}", &config.bind_port);
 
     axum::serve(listener, app).await.unwrap();
+
+    Ok(())
 }

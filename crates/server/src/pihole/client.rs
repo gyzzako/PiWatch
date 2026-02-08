@@ -1,26 +1,21 @@
 use tokio::sync::Mutex;
 
 use url::{Url, form_urlencoded};
-
-use crate::pihole::dto::AuthResponse;
+use crate::pihole::{dto::AuthResponse};
 
 pub(crate) struct PiholeClient {
     client: reqwest::Client,
-    server_url: String,
-    server_pass: &'static str,
+    pihole_url: String,
+    pihole_pass: String,
     current_sid: Mutex<Option<String>>, // TODO: move to DB
 }
 
 impl PiholeClient {
-    // TODO: move to config
-    const SERVER_URL: &str = "";
-    const SERVER_PASS: &str = "";
-    
-    pub(crate) fn new(client: reqwest::Client) -> Self {
+    pub(crate) fn new(client: reqwest::Client, pihole_url: &str, pihole_pass: &str) -> Self {
         Self {
             client: client,
-            server_url: format!("{}/{}", Self::SERVER_URL, "api"),
-            server_pass: Self::SERVER_PASS,
+            pihole_url: format!("{}/{}", pihole_url, "api"),
+            pihole_pass: pihole_pass.to_string(),
             current_sid: Mutex::new(None),
         }
     }
@@ -81,7 +76,7 @@ impl PiholeClient {
         let response = self.client
             .post(self.api_path("auth"))
             .json(&serde_json::json!({
-                "password": self.server_pass,
+                "password": self.pihole_pass,
             }))
             .send()
             .await?
@@ -92,7 +87,7 @@ impl PiholeClient {
     }
 
     fn api_path(&self, path: &str) -> String {
-        format!("{}/{}", self.server_url, path)
+        format!("{}/{}", self.pihole_url, path)
     }
 
     async fn get_current_sid(&self) -> Option<String> {

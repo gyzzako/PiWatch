@@ -6,17 +6,15 @@ use anyhow::Result;
 #[derive(Clone)]
 pub(crate) struct ApiClient {
    client: reqwest::Client,
-   server_url: &'static str,
+   server_url: String,
    hostname: String,
 }
 
 impl ApiClient {
-    const SERVER_URL: &'static str = "http://192.168.129.33:8080";
-
-    pub(crate) fn new(client: reqwest::Client) -> Result<Self> {
+    pub(crate) fn new(client: reqwest::Client, piwatch_server_url: &str) -> Result<Self> {
         Ok(Self {
             client: client,
-            server_url: Self::SERVER_URL,
+            server_url: piwatch_server_url.to_string(),
             hostname: hostname::get()?.to_string_lossy().to_string(),
         })
     }

@@ -7,9 +7,7 @@ use netlink_packet_route::{
 use netlink_packet_core::{NetlinkPayload,NetlinkMessage};
 use rtnetlink::new_connection;
 use futures::{StreamExt, TryStreamExt};
-use std::{
-    net::{IpAddr, Ipv4Addr}
-};
+use std::{net::{IpAddr, Ipv4Addr}};
 use anyhow::{Result};
 use futures_channel::mpsc::UnboundedReceiver;
 use netlink_sys::SocketAddr;
@@ -23,9 +21,7 @@ pub(crate) struct IpChangeListener {
 }
 
 impl IpChangeListener {
-    const INTERFACE: &'static str = "eth0";
-
-    pub(crate) async fn init(api: ApiClient) -> Result<Self> {
+    pub(crate) async fn init(api: ApiClient, interface: &str) -> Result<Self> {
         let (connection, handle, messages) = new_connection()?;
         tokio::spawn(connection);
 
@@ -33,7 +29,7 @@ impl IpChangeListener {
         let mut links = handle
             .link()
             .get()
-            .match_name(Self::INTERFACE.to_string())
+            .match_name(interface.to_string())
             .execute();
 
         let link = links

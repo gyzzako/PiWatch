@@ -43,25 +43,28 @@ pub(crate) async fn update_ip(State(state): State<AppState>, Json(req): Json<IpU
         return;
     }
 
-    // TODO: handle delete
-    if req.event != "add" {
-        warn!("Skipping UPDATE received with event={} for hostname {}", req.event, req.hostname);
-        return;
-    }
-
     let ip = req.ipv4.unwrap();
-    
-    if let Err(e) = state.pihole_client.put_ip(&req.hostname, &ip).await {
-        error!("Failed to register IP for hostname {}: {}", req.hostname, e);
-        return;
-    };
 
-    if let Some(mut agent) = state.agents.get_mut(&req.hostname) {
-        agent.last_seen = Instant::now();
-        agent.ipv4 = ip.to_string();
+    info!("Received IP update for hostname={} event={} ip={}", req.hostname, req.event, ip);
+    if req.event == "add" {
+        if let Err(e) = state.pihole_client.put_ip(&req.hostname, &ip).await {
+            error!("Failed to update IP for hostname {}: {}", req.hostname, e);
+            return;
+        };
 
         info!("UPDATE hostname={} event={} ip={}", req.hostname, req.event, ip);
-    } else {
-        warn!("UPDATE from unknown hostname {}", req.hostname);
+        return;
     }
+
+    if req.event == "del" {
+        if let Err(e) = state.pihole_client.delete_ip(&req.hostname, &ip).await {
+            error!("Failed to delete IP for hostname {}: {}", req.hostname, e);
+            return;
+        };
+        
+        info!("DELETE hostname={} event={} ip={}", req.hostname, req.event, ip);
+        return;
+    }
+
+    warn!("Skipping update... unknown event");
 }

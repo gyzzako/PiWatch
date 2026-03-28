@@ -1,6 +1,7 @@
 use core::dto::register_payload::RegisterPayload;
 use core::dto::heart_beat::Heartbeat;
 use core::dto::update_id::IpUpdatePayload;
+use core::logging::{debug, info};
 use anyhow::Result;
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ impl ApiClient {
     }
 
     pub(crate) async fn update_ip(&self, ipv4: Option<String>, event: String) -> Result<()> {
+        debug!("Sending IP update to server: event={} ip={}", event, ipv4.as_deref().unwrap_or("None"));
         let _ = self.client
             .post(format!("{}/update", self.server_url))
             .json(&IpUpdatePayload {
@@ -56,6 +58,7 @@ impl ApiClient {
             })
             .send()
             .await?;
+        info!("IP update sent successfully");
 
         Ok(())
     }

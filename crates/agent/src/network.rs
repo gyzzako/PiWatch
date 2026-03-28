@@ -11,10 +11,9 @@ use std::{net::{IpAddr, Ipv4Addr}};
 use anyhow::{Result};
 use futures_channel::mpsc::UnboundedReceiver;
 use netlink_sys::{AsyncSocket, SocketAddr};
-use core::logging::{debug};
+use core::logging::{debug, info};
 
 pub(crate) struct IpChangeListener {
-    last_ip: Option<String>,
     api: ApiClient,
     link_index: u32,
     messages: UnboundedReceiver<(NetlinkMessage<RouteNetlinkMessage>, SocketAddr)>,
@@ -46,7 +45,6 @@ impl IpChangeListener {
         let link_index = link.header.index;
 
         Ok(Self {
-            last_ip: None,
             api,
             link_index,
             messages,
@@ -105,15 +103,10 @@ impl IpChangeListener {
                 continue;
             };
 
-            if self.last_ip.as_deref() == Some(&ip) {
-                continue;
-            }
-
-            self.last_ip = Some(ip.clone());
-
             // TODO: specific endpoint for IP update/deletion
+            info!("Detected IP change: event={} ip={}", event, ip);
             if let Err(e) = self.api.update_ip(
-                self.last_ip.clone(),
+                Some(ip),
                 event.to_string(),
             ).await {
                 eprintln!("Failed to report IP change: {e}");

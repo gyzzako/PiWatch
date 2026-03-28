@@ -5,12 +5,13 @@ use netlink_packet_route::{
     RouteNetlinkMessage,
 };
 use netlink_packet_core::{NetlinkPayload,NetlinkMessage};
-use rtnetlink::new_connection;
+use rtnetlink::{constants::RTMGRP_IPV4_IFADDR, new_connection};
 use futures::{StreamExt, TryStreamExt};
 use std::{net::{IpAddr, Ipv4Addr}};
 use anyhow::{Result};
 use futures_channel::mpsc::UnboundedReceiver;
-use netlink_sys::SocketAddr;
+use netlink_sys::{AsyncSocket, SocketAddr};
+use core::logging::{debug};
 
 pub(crate) struct IpChangeListener {
     last_ip: Option<String>,
@@ -22,7 +23,12 @@ pub(crate) struct IpChangeListener {
 
 impl IpChangeListener {
     pub(crate) async fn init(api: ApiClient, interface: &str) -> Result<Self> {
-        let (connection, handle, messages) = new_connection()?;
+        let (mut connection, handle, messages) = new_connection()?;
+        
+        connection.socket_mut().socket_mut().bind(
+            &SocketAddr::new(0, RTMGRP_IPV4_IFADDR as u32)
+        )?;
+        
         tokio::spawn(connection);
 
         // resolve interface
@@ -83,7 +89,8 @@ impl IpChangeListener {
             let NetlinkPayload::InnerMessage(inner) = msg.payload else {
                 continue;
             };
-
+            
+            debug!("RAW MESSAGE: {:?}", inner);
             let (addr, event) = match inner {
                 RouteNetlinkMessage::NewAddress(a) => (a, "add"),
                 RouteNetlinkMessage::DelAddress(a) => (a, "del"),

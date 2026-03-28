@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use core::config::log::{logging, logging::LevelFilter};
 
 const CONFIG_PATH: &str = "config.json";
 const DEFAULT_BIND_PORT: u16 = 8887;
@@ -42,10 +43,21 @@ fn load_config_from_env() -> Result<Config, std::io::Error> {
             )
         })?;
 
+    let log_level = std::env::var("LOG_LEVEL")
+        .unwrap_or("info".to_string())
+        .parse::<LevelFilter>()
+        .map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "LOG_LEVEL must be a valid log level (off, error, warn, info, debug, trace)",
+            )
+        })?;
+
     Ok(Config {
         piwatch_server_url,
         listening_interface,
         bind_port,
+        log_level
     })
 }
 
@@ -84,6 +96,8 @@ pub(crate) struct Config {
     pub piwatch_server_url: String,
     pub listening_interface: String,
     pub bind_port: u16,
+    #[serde(with = "logging")]
+    pub log_level: LevelFilter
 }
 
 impl Default for Config {
@@ -92,6 +106,7 @@ impl Default for Config {
             piwatch_server_url: "piwatch_server_url".to_string(),
             listening_interface: DEFAULT_LISTENING_INTERFACE.to_string(),
             bind_port: DEFAULT_BIND_PORT,
+            log_level: LevelFilter::INFO
         }
     }
 }

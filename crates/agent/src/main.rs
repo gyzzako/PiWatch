@@ -18,6 +18,8 @@ async fn main() -> Result<()> {
             return Err(anyhow::anyhow!(e.to_string()));
         }
     };
+    
+    core::logging::init(&config.log_level);
 
     let client = reqwest::Client::new();
     let api = ApiClient::new(client.clone(), &config.piwatch_server_url)?;

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use core::config::log::{logging, logging::LevelFilter};
+use core_watch::config::log::{logging, logging::LevelFilter};
 
 const CONFIG_PATH: &str = "config.json";
 const DEFAULT_BIND_PORT: u16 = 8887;

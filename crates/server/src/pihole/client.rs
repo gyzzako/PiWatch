@@ -1,6 +1,6 @@
 use tokio::sync::Mutex;
 
-use core::logging::{debug, info, trace};
+use core_watch::logging::{debug, info};
 use url::{Url, form_urlencoded};
 use crate::pihole::{dto::AuthResponse};
 
@@ -8,7 +8,7 @@ pub(crate) struct PiholeClient {
     client: reqwest::Client,
     pihole_url: String,
     pihole_pass: String,
-    current_sid: Mutex<Option<String>>, // TODO: move to DB
+    current_sid: Mutex<Option<String>>,
 }
 
 impl PiholeClient {
@@ -21,61 +21,98 @@ impl PiholeClient {
         }
     }
 
-    pub(crate) async fn put_ip(&self, hostname: &str, ip: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) async fn reconcile_ip_for_hostname(&self, hostname: &str, new_ip: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.use_auth().await?;
 
-        let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, hostname).as_bytes()).collect::<String>();
-        let api_path = format!("{}/{}", self.api_path("config/dns/hosts"), kv);
+        let sid = self
+            .get_current_sid()
+            .await
+            .ok_or("Unexpected authentication failure")?;
 
-        let url = Url::parse(&api_path)?;
-        trace!("Update IP URL: {}", &url);
+        // 1. Fetch current hosts config
+        let url = self.api_path("config/dns/hosts");
 
-        let sid: String = self.get_current_sid().await.ok_or("Unexpected authentication failure")?;
-
-        // TODO: handle error when hostname-ip already exists
-        match self.client
-            .put(url)
-            .header("sid",  sid)
+        let response = self
+            .client
+            .get(url)
+            .header("sid", &sid)
             .send()
-            .await {
-                Ok(resp) => {
-                    if resp.status().is_success() {
-                        info!("Successfully updated IP for {} to {}", hostname, ip);
-                        Ok(())
-                    } else {
-                        Err(format!("Failed to put IP: HTTP {}", resp.status()).into())
+            .await?
+            .error_for_status()?;
+
+        let body: serde_json::Value = response.json().await?;
+
+        let hosts = body["config"]["dns"]["hosts"]
+            .as_array()
+            .ok_or("Invalid hosts format")?;
+
+        // 2. Collect IPs currently associated with hostname
+        let mut ips_to_delete: Vec<String> = Vec::new();
+
+        for entry in hosts {
+            if let Some(entry_str) = entry.as_str() {
+                let mut parts = entry_str.split_whitespace();
+
+                let ip = parts.next();
+                let host = parts.next();
+
+                if let (Some(ip), Some(host)) = (ip, host) {
+                    if host == hostname {
+                        ips_to_delete.push(ip.to_string());
                     }
-                },
-                Err(e) => Err(format!("Failed to put IP: {}", e).into()),
+                }
             }
-    }
+        }
 
-    pub(crate) async fn delete_ip(&self, hostname: &str, ip: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.use_auth().await?;
-        
-        let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, hostname).as_bytes()).collect::<String>();
-        let api_path = format!("{}/{}", self.api_path("config/dns/hosts"), kv);
+        // 3. Delete old entries
+        for ip in ips_to_delete {
+            let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, hostname).as_bytes())
+                .collect::<String>();
 
-        let url = Url::parse(&api_path)?;
-        trace!("Delete IP URL: {}", &url);
+            let delete_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
 
-        let sid: String = self.get_current_sid().await.ok_or("Unexpected authentication failure")?;
+            let resp = self
+                .client
+                .delete(delete_url)
+                .header("sid", &sid)
+                .send()
+                .await?;
 
-        match self.client
-            .delete(url)
-            .header("sid",  sid)
+            if !resp.status().is_success() {
+                return Err(format!(
+                    "Failed to delete old IP {} for {}: HTTP {}",
+                    ip,
+                    hostname,
+                    resp.status()
+                )
+                .into());
+            }
+
+            info!("Deleted old mapping {} -> {}", hostname, ip);
+        }
+
+        // 4. Add new mapping
+        let kv = form_urlencoded::byte_serialize(format!("{} {}", new_ip, hostname).as_bytes())
+            .collect::<String>();
+
+        let put_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
+
+        let resp = self
+            .client
+            .put(put_url)
+            .header("sid", &sid)
             .send()
-            .await {
-                Ok(resp) => {
-                    if resp.status().is_success() {
-                        info!("Successfully deleted IP for {}", hostname);
-                        Ok(())
-                    } else {
-                        Err(format!("Failed to delete IP: HTTP {}", resp.status()).into())
-                    }
-                },
-                Err(e) => Err(format!("Failed to delete IP: {}", e).into()),
-            }
+            .await?;
+
+        if resp.status().is_success() {
+            info!(
+                "Reconciled IP for {}: now {} (old entries removed)",
+                hostname, new_ip
+            );
+            Ok(())
+        } else {
+            Err(format!("Failed to put new IP: HTTP {}", resp.status()).into())
+        }
     }
 
     async fn use_auth(&self) -> Result<(), Box<dyn std::error::Error>> {

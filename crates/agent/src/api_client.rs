@@ -1,7 +1,5 @@
-use core::dto::register_payload::RegisterPayload;
-use core::dto::heart_beat::Heartbeat;
-use core::dto::update_id::IpUpdatePayload;
-use core::logging::{debug, info};
+use core_watch::dto::http_payloads::{RegisterPayload, Heartbeat, IpReconciliationPayload};
+use core_watch::logging::{debug, error, info};
 use anyhow::Result;
 
 #[derive(Clone)]
@@ -21,7 +19,6 @@ impl ApiClient {
     }
 
     pub(crate) async fn register_agent(&self, ipv4: Option<String>) -> Result<()> {
-
         let _ = self.client
             .post(format!("{}/register", self.server_url))
             .json(&RegisterPayload {
@@ -30,7 +27,8 @@ impl ApiClient {
                 ipv4,
             })
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         Ok(())
     }
@@ -42,24 +40,34 @@ impl ApiClient {
                 hostname: self.hostname.to_string(),
             })
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
+
+        debug!("Sent heartbeat");
 
         Ok(())
     }
 
-    pub(crate) async fn update_ip(&self, ipv4: Option<String>, event: String) -> Result<()> {
-        debug!("Sending IP update to server: event={} ip={}", event, ipv4.as_deref().unwrap_or("None"));
-        let _ = self.client
-            .post(format!("{}/update", self.server_url))
-            .json(&IpUpdatePayload {
+    pub(crate) async fn reconcile_ip(&self, ipv4: Option<String>) -> Result<()> {
+        debug!("Sending IP reconciliation to server: ip={}", ipv4.as_deref().unwrap_or("None"));
+
+        let payload = IpReconciliationPayload {
                 hostname: self.hostname.to_string(),
                 ipv4,
-                event,
-            })
-            .send()
-            .await?;
-        info!("IP update sent successfully");
+            };
 
+        let response = self.client
+            .post(format!("{}/reconcile", self.server_url))
+            .json(&payload)
+            .send()
+            .await
+            .inspect_err(|e| error!("REQWEST ERROR: {:?}", e))?;
+
+        response
+            .error_for_status()
+            .inspect_err(|e| error!("HTTP ERROR: {:?}", e))?;
+
+        info!("IP reconciliated successfully");
         Ok(())
     }
 }

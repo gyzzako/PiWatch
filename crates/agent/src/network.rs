@@ -1,23 +1,22 @@
 use crate::api_client::{ApiClient};
 use netlink_packet_route::{
-    address::AddressAttribute,
-    address::AddressMessage,
-    RouteNetlinkMessage,
+    RouteNetlinkMessage, address::{AddressAttribute, AddressMessage},
 };
 use netlink_packet_core::{NetlinkPayload,NetlinkMessage};
 use rtnetlink::{constants::RTMGRP_IPV4_IFADDR, new_connection};
 use futures::{StreamExt, TryStreamExt};
-use std::{net::{IpAddr, Ipv4Addr}};
+use tokio::sync::Mutex;
+use std::{net::{IpAddr, Ipv4Addr}, sync::Arc};
 use anyhow::{Result};
 use futures_channel::mpsc::UnboundedReceiver;
 use netlink_sys::{AsyncSocket, SocketAddr};
-use core::logging::{debug, info};
+use core_watch::logging::{debug, error, info};
 
 pub(crate) struct IpChangeListener {
     api: ApiClient,
     link_index: u32,
-    messages: UnboundedReceiver<(NetlinkMessage<RouteNetlinkMessage>, SocketAddr)>,
-    handle: rtnetlink::Handle
+    messages: Mutex<UnboundedReceiver<(NetlinkMessage<RouteNetlinkMessage>, SocketAddr)>>,
+    curr_ip: Mutex<Option<Ipv4Addr>>,
 }
 
 impl IpChangeListener {
@@ -47,51 +46,40 @@ impl IpChangeListener {
         Ok(Self {
             api,
             link_index,
-            messages,
-            handle,
+            messages: Mutex::new(messages),
+            curr_ip: Mutex::new(get_initial_ipv4(&handle, link_index).await),
         })
     }
 
-    pub(crate) async fn start(self) -> Result<tokio::task::JoinHandle<Result<(), anyhow::Error>>> {
-        let handle = tokio::spawn(async move {
-            match self.run().await {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    eprintln!("IP change listener stopped: {e}");
-                    Err(e)
-                }
+    pub(crate) fn start(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            if let Err(e) = self.run().await {
+                error!("IP change listener stopped: {e}");
             }
-        });
-        
-        Ok(handle)
+        })
     }
 
-    pub(crate) async fn get_initial_ipv4(&self) -> Option<Ipv4Addr> {
-        let mut addrs = self.handle
-            .address()
-            .get()
-            .set_link_index_filter(self.link_index)
-            .execute();
-
-        while let Ok(Some(addr)) = addrs.try_next().await {
-            if let Some(ip) = extract_ipv4(&addr) {
-                return Some(ip);
-            }
-        }
-
-        None
+    pub(crate) async fn get_current_ip(&self) -> Option<Ipv4Addr> {
+        *self.curr_ip.lock().await
     }
 
-    async fn run(mut self) -> Result<()> {
-        while let Some((msg, _)) = self.messages.next().await {
+    async fn run(self: Arc<Self>) -> Result<()> {
+        loop {
+            let msg_opt = {
+                let mut rx = self.messages.lock().await;
+                rx.next().await
+            };
+
+            let Some((msg, _)) = msg_opt else {
+                break;
+            };
             let NetlinkPayload::InnerMessage(inner) = msg.payload else {
                 continue;
             };
             
             debug!("RAW MESSAGE: {:?}", inner);
-            let (addr, event) = match inner {
-                RouteNetlinkMessage::NewAddress(a) => (a, "add"),
-                RouteNetlinkMessage::DelAddress(a) => (a, "del"),
+            let addr = match inner {
+                RouteNetlinkMessage::NewAddress(a) => a,
                 _ => continue,
             };
 
@@ -103,13 +91,16 @@ impl IpChangeListener {
                 continue;
             };
 
-            // TODO: specific endpoint for IP update/deletion
-            info!("Detected IP change: event={} ip={}", event, ip);
-            if let Err(e) = self.api.update_ip(
-                Some(ip),
-                event.to_string(),
-            ).await {
-                eprintln!("Failed to report IP change: {e}");
+            if self.curr_ip.lock().await.as_ref().map_or(false, |curr| curr.to_string() == ip) {
+                continue;
+            }
+
+            info!("Detected IP change from {} to {}", self.curr_ip.lock().await.as_ref().map_or_else(|| "unknown".into(), |ip| ip.to_string()), ip);
+
+            match self.api.reconcile_ip(Some(ip.clone())).await {
+                Ok(_) => *self.curr_ip.lock().await = Some(ip.parse()?),
+                Err(e) => error!("Failed to report IP change: {e}"),
+                
             }
         }
 
@@ -125,5 +116,21 @@ fn extract_ipv4(msg: &AddressMessage) -> Option<Ipv4Addr> {
             }
         }
     }
+    None
+}
+
+async fn get_initial_ipv4(handle: &rtnetlink::Handle, link_index: u32) -> Option<Ipv4Addr> {
+    let mut addrs = handle
+        .address()
+        .get()
+        .set_link_index_filter(link_index)
+        .execute();
+
+    while let Ok(Some(addr)) = addrs.try_next().await {
+        if let Some(ip) = extract_ipv4(&addr) {
+            return Some(ip);
+        }
+    }
+    
     None
 }

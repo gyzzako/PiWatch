@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-core = { path = "../core" }
+core_watch = { path = "../core" }
 tokio = { version = "1", features = ["full"] }
-rtnetlink = "0.20"
-netlink-packet-route = "0.28"
-netlink-packet-core = "0.8"
+rtnetlink = "0.21"
+netlink-packet-route = "0.30"
+netlink-packet-core = "0.8.1"
 futures = "0.3"
 reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1", features = ["derive"] }

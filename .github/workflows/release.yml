@@ -1,0 +1,50 @@
+name: Build and Release PiWatch
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build server
+        run: cargo build --release -p PiWatch
+
+      - name: Build agent
+        run: cargo build --release -p PiWatch-agent
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p dist
+          cp target/release/PiWatch dist/piwatch-server
+          cp target/release/PiWatch-agent dist/piwatch-agent
+          chmod +x dist/*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PiWatch ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/piwatch-server
+            dist/piwatch-agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

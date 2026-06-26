@@ -12,6 +12,7 @@ LOG_DIR="/var/log"
 RELEASE_URL="https://github.com/gyzzako/PiWatch/releases/latest/download/$BINARY_NAME"
 
 UNINSTALL=false
+RESET_CONFIG=false
 PIWATCH_SERVER_URL=""
 
 # -----------------------------
@@ -21,6 +22,9 @@ for arg in "$@"; do
     case $arg in
         --uninstall)
             UNINSTALL=true
+            ;;
+        --reset-config)
+            RESET_CONFIG=true
             ;;
         --piwatch-server-url=*)
             PIWATCH_SERVER_URL="${arg#*=}"
@@ -69,6 +73,13 @@ curl -L -o "$BINARY_PATH.tmp" "$RELEASE_URL"
 chmod +x "$BINARY_PATH.tmp"
 mv "$BINARY_PATH.tmp" "$BINARY_PATH"
 
+# -----------------------------
+# RESET CONFIG IF REQUESTED
+# -----------------------------
+if [ "$RESET_CONFIG" = true ]; then
+    echo "[2.5/6] Resetting config.json..."
+    rm -f "$CONFIG_PATH"
+fi
 
 echo "[3/6] Writing config.json (only if not exists)..."
 

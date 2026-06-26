@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BINARY_NAME="PiWatch"
+BINARY_NAME="piwatch-server"
 INSTALL_DIR="/data/piwatch"
 BINARY_PATH="$INSTALL_DIR/$BINARY_NAME"
 CONFIG_PATH="$INSTALL_DIR/config.json"
@@ -9,7 +9,7 @@ SERVICE_FILE="/etc/systemd/system/piwatch.service"
 
 LOG_DIR="/var/log"
 
-RELEASE_URL="https://github.com/gyzzako/PiWatch/releases/latest/download/PiWatch"
+RELEASE_URL="https://github.com/gyzzako/PiWatch/releases/latest/download/$BINARY_NAME"
 
 UNINSTALL=false
 PIHOLE_URL=""

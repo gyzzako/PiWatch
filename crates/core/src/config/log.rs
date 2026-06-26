@@ -36,7 +36,7 @@ use tracing_subscriber::EnvFilter;
         }
     }
 
-    pub fn init(level: String) {
+    pub fn init(level: &str) {
         tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::new(level))
             .init();

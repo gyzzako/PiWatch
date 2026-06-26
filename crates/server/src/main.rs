@@ -28,13 +28,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    core_watch::logging::init(config.log_level);
+    core_watch::logging::init(&config.log_level);
 
     let http_client = reqwest::Client::new();
 
     let state = AppState {
         agents: Arc::new(DashMap::new()),
-        pihole_client: Arc::new(PiholeClient::new(http_client, &config.pihole_url, &config.pihole_pass)),
+        pihole_client: Arc::new(PiholeClient::new(http_client, config.clone())),
     };
 
     // TODO: API versioning

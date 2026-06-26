@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
         }
     };
     
-    core_watch::logging::init(config.log_level);
+    core_watch::logging::init(&config.log_level);
 
     let client = reqwest::Client::new();
     let api = ApiClient::new(client.clone(), &config.piwatch_server_url)?;

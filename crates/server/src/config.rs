@@ -11,6 +11,7 @@ pub struct Config {
     pub pihole_pass: String,
     pub bind_port: u16,
     pub log_level: String,
+    pub hostname_suffix: Option<String>,
 }
 
 impl Default for Config {
@@ -20,6 +21,7 @@ impl Default for Config {
             pihole_pass: "pihole_pass".to_string(),
             bind_port: DEFAULT_BIND_PORT,
             log_level: LevelFilter::INFO.to_string(),
+            hostname_suffix: None,
         }
     }
 }
@@ -30,6 +32,7 @@ struct PartialConfig {
     pub pihole_pass: Option<String>,
     pub bind_port: Option<u16>,
     pub log_level: Option<String>,
+    pub hostname_suffix: Option<String>,
 }
 
 pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
@@ -59,6 +62,9 @@ fn load_from_file_or_default() -> Result<Config, Box<dyn std::error::Error>> {
         if let Some(v) = partial.log_level {
             cfg.log_level = v;
         }
+        if let Some(v) = partial.hostname_suffix {
+            cfg.hostname_suffix = Some(v);
+        }
 
         return Ok(cfg);
     }
@@ -85,6 +91,10 @@ fn apply_env_overrides(config: &mut Config) {
 
     if let Ok(v) = env::var("LOG_LEVEL") {
         config.log_level = v;
+    }
+
+    if let Ok(v) = env::var("HOSTNAME_SUFFIX") {
+        config.hostname_suffix = Some(v);
     }
 }
 

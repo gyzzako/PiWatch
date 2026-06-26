@@ -2,27 +2,32 @@ use tokio::sync::Mutex;
 
 use core_watch::logging::{debug, info};
 use url::{Url, form_urlencoded};
-use crate::pihole::{dto::AuthResponse};
+use crate::{config::Config, pihole::dto::AuthResponse};
 
 pub(crate) struct PiholeClient {
     client: reqwest::Client,
+    config: Config,
     pihole_url: String,
-    pihole_pass: String,
     current_sid: Mutex<Option<String>>,
 }
 
 impl PiholeClient {
-    pub(crate) fn new(client: reqwest::Client, pihole_url: &str, pihole_pass: &str) -> Self {
+    pub(crate) fn new(client: reqwest::Client, config: Config) -> Self {
         Self {
-            client: client,
-            pihole_url: format!("{}/{}", pihole_url, "api"),
-            pihole_pass: pihole_pass.to_string(),
+            client,
+            config: config.clone(),
+            pihole_url: format!("{}/{}", &config.pihole_url, "api"),
             current_sid: Mutex::new(None),
         }
     }
 
     pub(crate) async fn reconcile_ip_for_hostname(&self, hostname: &str, new_ip: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.use_auth().await?;
+        let processed_hostname = if let Some(suffix) = &self.config.hostname_suffix {
+            format!("{}.{}", hostname, suffix)
+        } else {
+            hostname.to_string()
+        };
 
         let sid = self
             .get_current_sid()
@@ -57,7 +62,7 @@ impl PiholeClient {
                 let host = parts.next();
 
                 if let (Some(ip), Some(host)) = (ip, host) {
-                    if host == hostname {
+                    if host == processed_hostname {
                         ips_to_delete.push(ip.to_string());
                     }
                 }
@@ -66,7 +71,7 @@ impl PiholeClient {
 
         // 3. Delete old entries
         for ip in ips_to_delete {
-            let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, hostname).as_bytes())
+            let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, processed_hostname).as_bytes())
                 .collect::<String>();
 
             let delete_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
@@ -82,17 +87,17 @@ impl PiholeClient {
                 return Err(format!(
                     "Failed to delete old IP {} for {}: HTTP {}",
                     ip,
-                    hostname,
+                    processed_hostname,
                     resp.status()
                 )
                 .into());
             }
 
-            info!("Deleted old mapping {} -> {}", hostname, ip);
+            info!("Deleted old mapping {} -> {}", processed_hostname, ip);
         }
 
         // 4. Add new mapping
-        let kv = form_urlencoded::byte_serialize(format!("{} {}", new_ip, hostname).as_bytes())
+        let kv = form_urlencoded::byte_serialize(format!("{} {}", new_ip, processed_hostname).as_bytes())
             .collect::<String>();
 
         let put_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
@@ -107,7 +112,7 @@ impl PiholeClient {
         if resp.status().is_success() {
             info!(
                 "Reconciled IP for {}: now {} (old entries removed)",
-                hostname, new_ip
+                processed_hostname, new_ip
             );
             Ok(())
         } else {
@@ -152,7 +157,7 @@ impl PiholeClient {
         let response = self.client
             .post(self.api_path("auth"))
             .json(&serde_json::json!({
-                "password": self.pihole_pass,
+                "password": &self.config.pihole_pass,
             }))
             .send()
             .await?

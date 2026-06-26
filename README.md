@@ -27,7 +27,7 @@ PiWatch is a lightweight distributed network monitoring system that tracks IP/in
 Run this on the server machine:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-server.sh | sudo bash -s -- \
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-server.sh | sudo bash -s -- \
   --pihole-url="https://YOUR_PIHOLE_URL" \
   --pihole-pass="YOUR_PIHOLE_PASSWORD"
 ```
@@ -73,7 +73,7 @@ Logs:
 Run this on each Proxmox LXC / Linux host:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-agent.sh | sudo bash -s -- \
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-agent.sh | sudo bash -s -- \
   --piwatch-server-url="https://YOUR_SERVER_URL"
 ```
 
@@ -120,13 +120,13 @@ Re-run install scripts:
 ## Server
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-server.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-server.sh | sudo bash
 ```
 
 ## Agent
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-agent.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-agent.sh | sudo bash
 ```
 
 ---
@@ -136,13 +136,13 @@ curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/in
 ## Server
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-server.sh | sudo bash -s -- --uninstall
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-server.sh | sudo bash -s -- --uninstall
 ```
 
 ## Agent
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/install-agent.sh | sudo bash -s -- --uninstall
+curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-agent.sh | sudo bash -s -- --uninstall
 ```
 
 ---

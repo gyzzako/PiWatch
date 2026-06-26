@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    core_watch::logging::init(&config.log_level);
+    core_watch::logging::init(config.log_level);
 
     let http_client = reqwest::Client::new();
 

@@ -1,5 +1,6 @@
 pub mod logging {
-    use tracing_subscriber::EnvFilter;
+
+use tracing_subscriber::EnvFilter;
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub use tracing::{trace, error, info, warn, debug};
@@ -35,9 +36,9 @@ pub mod logging {
         }
     }
 
-    pub fn init(level: &LevelFilter) {
+    pub fn init(level: String) {
         tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::new(level.to_string()))
+            .with_env_filter(EnvFilter::new(level))
             .init();
     }
 }

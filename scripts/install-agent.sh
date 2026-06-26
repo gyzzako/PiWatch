@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+#
+# Usage:
+#   curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-agent.sh | sudo bash [-s -- [options]]
+
+# Options:
+#   --uninstall             Uninstall the PiWatch server completly (default: false)
+#   --reset-config          Reset the config file (default: false)
+#   --piwatch-server-url    PiWatch server URL
+
+
 set -euo pipefail
 
 BINARY_NAME="piwatch-agent"

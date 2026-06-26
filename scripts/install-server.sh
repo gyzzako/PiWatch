@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+#
+# Usage:
+#   curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-server.sh | sudo bash [-s -- [options]]
+
+# Options:
+#   --uninstall         Uninstall the PiWatch server completly (default: false)
+#   --reset-config      Reset the config file (default: false)
+#   --pihole-url        Pihole server URL
+#   --pihole-pass       Pihole server password
+#   --hostname_suffix   Suffix for the hostname registered in Pihole (default: empty)
+
+
 set -euo pipefail
 
 BINARY_NAME="piwatch-server"
@@ -15,6 +27,7 @@ UNINSTALL=false
 RESET_CONFIG=false
 PIHOLE_URL=""
 PIHOLE_PASS=""
+HOSTNAME_SUFFIX=""
 
 # -----------------------------
 # PARSE ARGS
@@ -32,6 +45,9 @@ for arg in "$@"; do
             ;;
         --pihole-pass=*)
             PIHOLE_PASS="${arg#*=}"
+            ;;
+        --hostname_suffix=*)
+            HOSTNAME_SUFFIX="${arg#*=}"
             ;;
     esac
 done
@@ -93,7 +109,8 @@ if [ ! -f "$CONFIG_PATH" ]; then
 {
   "pihole_url": "$PIHOLE_URL",
   "bind_port": 8888,
-  "log_level": "info"
+  "log_level": "info",
+  "hostname_suffix": "$HOSTNAME_SUFFIX"
 }
 EOF
     echo "   → config created"

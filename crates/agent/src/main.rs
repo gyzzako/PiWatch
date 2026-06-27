@@ -4,7 +4,7 @@ mod config;
 mod heartbeat;
 
 use std::{sync::Arc};
-use crate::config::load_config;
+use crate::config::{load_config, AgentIdentity};
 use crate::{api_client::ApiClient};
 use crate::network::IpChangeListener;
 use anyhow::Result;
@@ -16,15 +16,25 @@ async fn main() -> Result<()> {
     let config = match load_config() {
         Ok(cfg) => cfg,
         Err(e) => {
-            error!("Failed to load configuration: {}", e);
-            return Err(anyhow::anyhow!(e.to_string()));
+            error!("Failed to load configuration: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
         }
     };
     
     core_watch::logging::init(&config.log_level);
 
+    let identity = match AgentIdentity::load_or_create() {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Failed to load or create agent identity: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
+        }
+    };
+    
     let client = reqwest::Client::new();
-    let api = ApiClient::new(client.clone(), &config.piwatch_server_url)?;
+    let api = ApiClient::new(client.clone(), &config.piwatch_server_url, identity.uuid)?;
     let ip_listener = Arc::new(
         IpChangeListener::init(api.clone(), &config.listening_interface).await?
     );
@@ -34,8 +44,9 @@ async fn main() -> Result<()> {
     match api.register_agent(ip).await {
         Ok(_) => info!("Successfully registered agent."),
         Err(e) => {
-            error!("Failed to register agent: {}", e);
-            return Err(e.into());
+            error!("Failed to register agent: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
         }
     };
 

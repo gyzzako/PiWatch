@@ -1,71 +1,101 @@
 use core_watch::dto::http_payloads::{RegisterPayload, Heartbeat, IpReconciliationPayload};
-use core_watch::logging::{debug, error, info};
+use core_watch::dto::api::DefaultApiResponse;
+use core_watch::logging::{debug, info};
 use anyhow::Result;
+use uuid::Uuid;
+
+use crate::heartbeat::HeartbeatResponse;
 
 #[derive(Clone)]
 pub(crate) struct ApiClient {
-   client: reqwest::Client,
-   server_url: String,
-   hostname: String,
+    client: reqwest::Client,
+    server_url: String,
+    hostname: String,
+    uuid: Uuid,
 }
 
 impl ApiClient {
-    pub(crate) fn new(client: reqwest::Client, piwatch_server_url: &str) -> Result<Self> {
+    pub(crate) fn new(client: reqwest::Client, piwatch_server_url: &str, uuid: Uuid) -> Result<Self> {
         Ok(Self {
             client: client,
             server_url: piwatch_server_url.to_string(),
             hostname: hostname::get()?.to_string_lossy().to_string(),
+            uuid,
         })
     }
 
     pub(crate) async fn register_agent(&self, ipv4: Option<String>) -> Result<()> {
-        let _ = self.client
+        let response = self.client
             .post(format!("{}/register", self.server_url))
             .json(&RegisterPayload {
                 hostname: self.hostname.to_string(),
                 agent_version: env!("CARGO_PKG_VERSION").to_string(),
                 ipv4,
+                uuid: self.uuid,
             })
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
 
+        let status = response.status();
+        let body: DefaultApiResponse = response.json().await?;
+
+        if !body.success {
+            return Err(anyhow::anyhow!(
+                "registration failed (status {}): {}",
+                status,
+                body.message.unwrap_or_else(|| "unknown error".to_string())
+            ));
+        }
         Ok(())
     }
 
-    pub(crate) async fn send_heartbeat(&self) -> Result<()> {
-        let _ = self.client
+    pub(crate) async fn send_heartbeat(&self) -> Result<HeartbeatResponse> {
+        let response = self.client
             .post(format!("{}/heartbeat", self.server_url))
             .json(&Heartbeat {
                 hostname: self.hostname.to_string(),
+                uuid: self.uuid,
             })
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
 
-        debug!("Sent heartbeat");
+        let status = response.status();
+        let body: DefaultApiResponse = response.json()
+            .await
+            .unwrap_or(DefaultApiResponse {
+                success: false,
+                message: Some("invalid response body".to_string()),
+            });
 
-        Ok(())
+        
+        Ok(HeartbeatResponse { status, body })
     }
 
     pub(crate) async fn reconcile_ip(&self, ipv4: Option<String>) -> Result<()> {
         debug!("Sending IP reconciliation to server: ip={}", ipv4.as_deref().unwrap_or("None"));
 
         let payload = IpReconciliationPayload {
-                hostname: self.hostname.to_string(),
-                ipv4,
-            };
+            hostname: self.hostname.to_string(),
+            uuid: self.uuid,
+            ipv4,
+        };
 
         let response = self.client
             .post(format!("{}/reconcile", self.server_url))
             .json(&payload)
             .send()
-            .await
-            .inspect_err(|e| error!("REQWEST ERROR: {:?}", e))?;
+            .await?;
 
-        response
-            .error_for_status()
-            .inspect_err(|e| error!("HTTP ERROR: {:?}", e))?;
+        let status = response.status();
+        let body: DefaultApiResponse = response.json().await?;
+
+        if !body.success {
+            return Err(anyhow::anyhow!(
+                "IP reconciliation failed (status {}): {}",
+                status,
+                body.message.unwrap_or_else(|| "unknown error".to_string())
+            ));
+        }
 
         info!("IP reconciliated successfully");
         Ok(())

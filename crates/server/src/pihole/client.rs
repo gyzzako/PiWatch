@@ -1,3 +1,4 @@
+use serde_json::Value;
 use tokio::sync::Mutex;
 
 use core_watch::logging::{debug, info};
@@ -29,6 +30,54 @@ impl PiholeClient {
             hostname.to_string()
         };
 
+        // 1. Fetch current hosts config
+        let hosts = &self.get_ip_entries().await?;
+
+        // 2. Collect IPs currently associated with hostname
+        let mut current_associated_ips: Vec<String> = Vec::new();
+
+        for entry in hosts {
+            if let Some(entry_str) = entry.as_str() {
+                let mut parts = entry_str.split_whitespace();
+
+                let ip = parts.next();
+                let host = parts.next();
+
+                if let (Some(ip), Some(host)) = (ip, host) {
+                    if host == processed_hostname {
+                        current_associated_ips.push(ip.to_string());
+                    }
+                }
+            }
+        }
+
+        // Check if new_ip is already present in hosts
+        let new_ip_already_present = hosts.iter().any(|entry| {
+            entry.as_str()
+                .map(|e| e == format!("{} {}", new_ip, processed_hostname))
+                .unwrap_or(false)
+        });
+
+        // Filter out new_ip from deletion list - don't delete if it's already present
+        let ips_to_delete: Vec<String> = current_associated_ips
+            .into_iter()
+            .filter(|ip| ip.as_str() != new_ip)
+            .collect();
+
+        // 3. Delete old entries
+        self.delete_ip_for_hostname(&processed_hostname, ips_to_delete).await?;
+
+        // 4. If new_ip was already present, skip PUT
+        if new_ip_already_present {
+            info!("IP {} already present for hostname={}, no update needed", new_ip, processed_hostname);
+            return Ok(());
+        }
+
+        // 5. Add new mapping
+        self.update_ip_entry_for_hostname(&processed_hostname, new_ip).await
+    }
+
+    async fn get_ip_entries(&self) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
         let sid = self
             .get_current_sid()
             .await
@@ -51,25 +100,41 @@ impl PiholeClient {
             .as_array()
             .ok_or("Invalid hosts format")?;
 
-        // 2. Collect IPs currently associated with hostname
-        let mut ips_to_delete: Vec<String> = Vec::new();
+        Ok(hosts.clone())
+    }
 
-        for entry in hosts {
-            if let Some(entry_str) = entry.as_str() {
-                let mut parts = entry_str.split_whitespace();
+    async fn update_ip_entry_for_hostname(&self, processed_hostname: &str, new_ip: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let sid = self
+            .get_current_sid()
+            .await
+            .ok_or("Unexpected authentication failure")?;
 
-                let ip = parts.next();
-                let host = parts.next();
+        let kv = form_urlencoded::byte_serialize(format!("{} {}", new_ip, processed_hostname).as_bytes())
+            .collect::<String>();
 
-                if let (Some(ip), Some(host)) = (ip, host) {
-                    if host == processed_hostname {
-                        ips_to_delete.push(ip.to_string());
-                    }
-                }
-            }
+        let put_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
+
+        let resp = self
+            .client
+            .put(put_url)
+            .header("sid", &sid)
+            .send()
+            .await?;
+
+        if resp.status().is_success() {
+            info!("Reconciled IP for {}: now {} (old entries removed)", processed_hostname, new_ip);
+            Ok(())
+        } else {
+            Err(format!("Failed to put new IP: HTTP {}", resp.status()).into())
         }
+    }
 
-        // 3. Delete old entries
+    async fn delete_ip_for_hostname(&self, processed_hostname: &str, ips_to_delete: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+        let sid = self
+            .get_current_sid()
+            .await
+            .ok_or("Unexpected authentication failure")?;
+        
         for ip in ips_to_delete {
             let kv = form_urlencoded::byte_serialize(format!("{} {}", ip, processed_hostname).as_bytes())
                 .collect::<String>();
@@ -96,28 +161,7 @@ impl PiholeClient {
             info!("Deleted old mapping {} -> {}", processed_hostname, ip);
         }
 
-        // 4. Add new mapping
-        let kv = form_urlencoded::byte_serialize(format!("{} {}", new_ip, processed_hostname).as_bytes())
-            .collect::<String>();
-
-        let put_url = Url::parse(&self.api_path(&format!("config/dns/hosts/{}", kv)))?;
-
-        let resp = self
-            .client
-            .put(put_url)
-            .header("sid", &sid)
-            .send()
-            .await?;
-
-        if resp.status().is_success() {
-            info!(
-                "Reconciled IP for {}: now {} (old entries removed)",
-                processed_hostname, new_ip
-            );
-            Ok(())
-        } else {
-            Err(format!("Failed to put new IP: HTTP {}", resp.status()).into())
-        }
+        Ok(())
     }
 
     async fn use_auth(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -154,7 +198,7 @@ impl PiholeClient {
     }
 
     async fn create_auth(&self) -> Result<AuthResponse, Box<dyn std::error::Error>> {
-        let response = self.client
+        let response: AuthResponse = self.client
             .post(self.api_path("auth"))
             .json(&serde_json::json!({
                 "password": &self.config.pihole_pass,

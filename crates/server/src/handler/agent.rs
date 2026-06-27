@@ -12,10 +12,26 @@ use std::time::{SystemTime, Instant};
 
 pub(crate) async fn register(State(state): State<AppState>, Json(req): Json<RegisterPayload>) -> ApiResponse {
     let hostname = req.hostname.clone();
-    info!("Received REGISTER hostname={} ip={:?}", hostname, req.ipv4);
+    info!("Received REGISTER hostname={} uuid={} ip={:?}", hostname, req.uuid, req.ipv4);
+
+    // Check for existing agent with same hostname
+    if let Some(existing) = state.agents.get(&hostname) {
+        // Allow re-registration if UUID matches
+        if existing.uuid == req.uuid {
+            info!("Re-registering existing agent");
+        } else {
+            // Reject if hostname exists but UUID differs
+            warn!("Registration rejected: hostname '{}' already registered with different UUID", hostname);
+            return ApiResponse::Error(StatusCode::CONFLICT, Json(DefaultApiResponse {
+                success: false,
+                message: Some(format!("Hostname '{}' is already registered with a different identity. Cannot register.", hostname)),
+            }));
+        }
+    }
 
     let agent = AgentState {
         hostname: hostname.clone(),
+        uuid: req.uuid,
         agent_version: req.agent_version,
         ipv4: req.ipv4.clone().unwrap_or_default(),
         registered_at: SystemTime::now(),
@@ -30,7 +46,7 @@ pub(crate) async fn register(State(state): State<AppState>, Json(req): Json<Regi
             return ApiResponse::StatusOnly(StatusCode::CREATED);
         }
 
-        info!("Registered and reconciled hostname={} ip={}", hostname, ip);
+        info!("Registered hostname={} ip={}", hostname, ip);
     } else {
         warn!("Registered hostname={} without IPv4", hostname);
     }

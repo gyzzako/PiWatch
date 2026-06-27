@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use core_watch::config::log::logging::LevelFilter;
+use uuid::Uuid;
 
 const CONFIG_PATH: &str = "config.json";
+const IDENTITY_PATH: &str = "/etc/piwatch/identity.json";
 const DEFAULT_BIND_PORT: u16 = 8887;
 const DEFAULT_LISTENING_INTERFACE: &str = "eth0";
 
@@ -12,6 +14,37 @@ pub struct Config {
     pub listening_interface: String,
     pub bind_port: u16,
     pub log_level: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentIdentity {
+    pub uuid: Uuid,
+}
+
+impl AgentIdentity {
+    pub fn load_or_create() -> Result<Self, Box<dyn std::error::Error>> {
+        let path = Path::new(IDENTITY_PATH);
+
+        if path.exists() {
+            let content = fs::read_to_string(path)?;
+            let identity: AgentIdentity = serde_json::from_str(&content)?;
+            return Ok(identity);
+        }
+
+        let identity = Self {
+            uuid: Uuid::new_v4(),
+        };
+
+        // Ensure parent directory exists (if any)
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let json = serde_json::to_string_pretty(&identity)?;
+        fs::write(path, json)?;
+
+        Ok(identity)
+    }
 }
 
 impl Default for Config {

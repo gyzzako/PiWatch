@@ -44,7 +44,8 @@ Example:
 {
   "pihole_url": "https://YOUR_PIHOLE_URL",
   "bind_port": 8888,
-  "log_level": "info"
+  "log_level": "info",
+  "hostname_suffix": "lxc"
 }
 ```
 

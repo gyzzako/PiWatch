@@ -31,10 +31,13 @@ pub fn start_heartbeat(
                                 } else {
                                     info!("Re-registered successfully");
                                 }
+                            } else {
+                                error!("Heartbeat error: {e}");
                             }
                         }
+                    } else {
+                        error!("Heartbeat error: {e}");
                     }
-                    error!("Heartbeat error: {e}");
                 }
             }
 

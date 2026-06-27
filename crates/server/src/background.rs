@@ -14,10 +14,8 @@ pub fn start_agent_monitor(agents: Arc<DashMap<String, AgentState>>) -> JoinHand
         loop {
             for entry in agents.iter() {
                 if entry.last_seen.elapsed() > Duration::from_secs(300) {
-                    warn!(
-                        "Node {} has been offline for >5m",
-                        entry.key()
-                    );
+                    warn!("Node {} has been offline for >5m. Removing...", entry.key());
+                    agents.remove(entry.key());
                 }
             }
 

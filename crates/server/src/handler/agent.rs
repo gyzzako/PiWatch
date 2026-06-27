@@ -16,6 +16,10 @@ pub(crate) async fn register(State(state): State<AppState>, Json(req): Json<Regi
 
     if state.agents.contains_key(&hostname) {
         warn!("Agent with hostname={} is already registered", hostname);
+        state.agents.get_mut(&hostname).map(|mut agent| {
+            agent.last_seen = Instant::now();
+            agent.ipv4 = req.ipv4.clone().unwrap_or_default();
+        });
         return ApiResponse::Error(StatusCode::CONFLICT, Json(DefaultApiResponse {
             success: false,
             message: Some(format!("Agent with hostname={} is already registered", hostname)),

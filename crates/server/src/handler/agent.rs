@@ -30,7 +30,7 @@ pub(crate) async fn register(State(state): State<AppState>, Json(req): Json<Regi
             return ApiResponse::StatusOnly(StatusCode::CREATED);
         }
 
-        info!("Registered and reconciled hostname={} ip={}", hostname, ip);
+        info!("Registered hostname={} ip={}", hostname, ip);
     } else {
         warn!("Registered hostname={} without IPv4", hostname);
     }

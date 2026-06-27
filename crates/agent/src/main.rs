@@ -16,8 +16,9 @@ async fn main() -> Result<()> {
     let config = match load_config() {
         Ok(cfg) => cfg,
         Err(e) => {
-            error!("Failed to load configuration: {}", e);
-            return Err(anyhow::anyhow!(e.to_string()));
+            error!("Failed to load configuration: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
         }
     };
     
@@ -26,8 +27,9 @@ async fn main() -> Result<()> {
     let identity = match AgentIdentity::load_or_create() {
         Ok(id) => id,
         Err(e) => {
-            error!("Failed to load or create agent identity: {}", e);
-            return Err(anyhow::anyhow!(e.to_string()));
+            error!("Failed to load or create agent identity: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
         }
     };
     
@@ -42,8 +44,9 @@ async fn main() -> Result<()> {
     match api.register_agent(ip).await {
         Ok(_) => info!("Successfully registered agent."),
         Err(e) => {
-            error!("Failed to register agent: {}", e);
-            return Err(e.into());
+            error!("Failed to register agent: {:#}", e);
+            info!("Shutting down agent...");
+            std::process::exit(1);
         }
     };
 

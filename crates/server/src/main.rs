@@ -30,7 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     core_watch::logging::init(&config.log_level);
 
-    let http_client = reqwest::Client::new();
+    let http_client = reqwest::Client::builder()
+        .user_agent("PiWatch-server/v0.1.0")
+        .build()?;
 
     let state = AppState {
         agents: Arc::new(DashMap::new()),

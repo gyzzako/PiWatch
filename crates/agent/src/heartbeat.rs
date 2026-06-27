@@ -31,6 +31,9 @@ pub fn start_heartbeat(
                                 } else {
                                     info!("Re-registered successfully");
                                 }
+                            } else if status == reqwest::StatusCode::FORBIDDEN {
+                                error!("Identity mismatch detected. Exiting...");
+                                std::process::exit(1);
                             } else {
                                 error!("Heartbeat error: {e}");
                             }

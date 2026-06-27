@@ -12,7 +12,7 @@ use core_watch::logging::{info, error};
 use crate::{
     config::load_config, handler::{
         agent::{register, reconcile_ip},
-        heart_beat::heartbeat,
+        heartbeat::heartbeat,
         metric::{list_agents, stats},
     }, model::state::AppState
 };

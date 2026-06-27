@@ -1,3 +1,3 @@
 pub mod agent;
-pub mod heart_beat;
+pub mod heartbeat;
 pub mod metric;

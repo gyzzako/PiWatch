@@ -4,7 +4,7 @@ mod config;
 mod heartbeat;
 
 use std::{sync::Arc};
-use crate::config::load_config;
+use crate::config::{load_config, AgentIdentity};
 use crate::{api_client::ApiClient};
 use crate::network::IpChangeListener;
 use anyhow::Result;
@@ -23,8 +23,16 @@ async fn main() -> Result<()> {
     
     core_watch::logging::init(&config.log_level);
 
+    let identity = match AgentIdentity::load_or_create() {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Failed to load or create agent identity: {}", e);
+            return Err(anyhow::anyhow!(e.to_string()));
+        }
+    };
+    
     let client = reqwest::Client::new();
-    let api = ApiClient::new(client.clone(), &config.piwatch_server_url)?;
+    let api = ApiClient::new(client.clone(), &config.piwatch_server_url, identity.uuid)?;
     let ip_listener = Arc::new(
         IpChangeListener::init(api.clone(), &config.listening_interface).await?
     );

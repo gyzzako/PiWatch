@@ -4,6 +4,7 @@ use std::{
 };
 use dashmap::DashMap;
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -15,6 +16,7 @@ pub(crate) type Agents = DashMap<String, AgentState>;
 
 pub(crate) struct AgentState {
     pub hostname: String,
+    pub uuid: Uuid,
     pub agent_version: String,
     pub ipv4: String,
     pub registered_at: SystemTime,

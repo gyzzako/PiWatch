@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use core_watch::config::log::logging::LevelFilter;
-use uuid::Uuid;
 
 const CONFIG_PATH: &str = "config.json";
 const IDENTITY_PATH: &str = "/etc/piwatch/identity.json";
@@ -18,32 +17,33 @@ pub struct Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentIdentity {
-    pub uuid: Uuid,
+    pub agent_id: String,
+    pub agent_secret: String,
 }
 
 impl AgentIdentity {
-    pub fn load_or_create() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let path = Path::new(IDENTITY_PATH);
-
         if path.exists() {
             let content = fs::read_to_string(path)?;
             let identity: AgentIdentity = serde_json::from_str(&content)?;
             return Ok(identity);
         }
+        Err("No agent identity found. Please register first.".into())
+    }
 
-        let identity = Self {
-            uuid: Uuid::new_v4(),
-        };
-
-        // Ensure parent directory exists (if any)
+    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Path::new(IDENTITY_PATH);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-
-        let json = serde_json::to_string_pretty(&identity)?;
+        let json = serde_json::to_string_pretty(self)?;
         fs::write(path, json)?;
+        Ok(())
+    }
 
-        Ok(identity)
+    pub fn install_token() -> String {
+        std::env::var("PIWATCH_INSTALL_TOKEN").expect("install token not found in environment variable PIWATCH_INSTALL_TOKEN")
     }
 }
 

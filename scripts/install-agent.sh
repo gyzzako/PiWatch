@@ -4,9 +4,10 @@
 #   curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-agent.sh | sudo bash [-s -- [options]]
 
 # Options:
-#   --uninstall             Uninstall the PiWatch server completly (default: false)
+#   --uninstall             Uninstall the PiWatch agent completely (default: false)
 #   --reset-config          Reset the config file (default: false)
 #   --piwatch-server-url    PiWatch server URL
+#   --install-token         Install token for registration
 
 
 set -euo pipefail
@@ -24,6 +25,7 @@ RELEASE_URL="https://github.com/gyzzako/PiWatch/releases/latest/download/$BINARY
 UNINSTALL=false
 RESET_CONFIG=false
 PIWATCH_SERVER_URL=""
+INSTALL_TOKEN=""
 
 # -----------------------------
 # PARSE ARGS
@@ -38,6 +40,9 @@ for arg in "$@"; do
             ;;
         --piwatch-server-url=*)
             PIWATCH_SERVER_URL="${arg#*=}"
+            ;;
+        --install-token=*)
+            INSTALL_TOKEN="${arg#*=}"
             ;;
     esac
 done
@@ -112,7 +117,6 @@ cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=PiWatch agent
 After=network.target
-StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
@@ -120,6 +124,7 @@ Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$BINARY_PATH
+Environment="PIWATCH_INSTALL_TOKEN=$INSTALL_TOKEN"
 
 Restart=on-failure
 RestartSec=5s

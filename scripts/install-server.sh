@@ -4,11 +4,12 @@
 #   curl -sSL https://raw.githubusercontent.com/gyzzako/PiWatch/refs/heads/master/scripts/install-server.sh | sudo bash [-s -- [options]]
 
 # Options:
-#   --uninstall         Uninstall the PiWatch server completly (default: false)
-#   --reset-config      Reset the config file (default: false)
-#   --pihole-url        Pihole server URL
-#   --pihole-pass       Pihole server password
-#   --hostname_suffix   Suffix for the hostname registered in Pihole (default: empty)
+#   --uninstall             Uninstall the PiWatch server completely (default: false)
+#   --reset-config          Reset the config file (default: false)
+#   --pihole-url            Pihole server URL (required)
+#   --pihole-pass           Pihole server password (required)
+#   --hostname-suffix       Suffix for the hostname registered in Pihole (default: empty)
+#   --install-token         Install token for agent registration (optional, auto-generated if not set)
 
 
 set -euo pipefail
@@ -28,6 +29,7 @@ RESET_CONFIG=false
 PIHOLE_URL=""
 PIHOLE_PASS=""
 HOSTNAME_SUFFIX=""
+INSTALL_TOKEN=""
 
 # -----------------------------
 # PARSE ARGS
@@ -46,8 +48,11 @@ for arg in "$@"; do
         --pihole-pass=*)
             PIHOLE_PASS="${arg#*=}"
             ;;
-        --hostname_suffix=*)
+        --hostname-suffix=*)
             HOSTNAME_SUFFIX="${arg#*=}"
+            ;;
+        --install-token=*)
+            INSTALL_TOKEN="${arg#*=}"
             ;;
     esac
 done
@@ -119,11 +124,15 @@ else
 fi
 
 echo "[4/6] Installing systemd service..."
+INSTALL_TOKEN_ENV=""
+if [ -n "$INSTALL_TOKEN" ]; then
+    INSTALL_TOKEN_ENV="Environment=\"PIWATCH_INSTALL_TOKEN=$INSTALL_TOKEN\""
+fi
+
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=PiWatch
 After=network.target
-StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
@@ -132,6 +141,9 @@ User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$BINARY_PATH
 Environment="PIHOLE_PASS=$PIHOLE_PASS"
+Environment="PIHOLE_URL=$PIHOLE_URL"
+Environment="HOSTNAME_SUFFIX=$HOSTNAME_SUFFIX"
+$INSTALL_TOKEN_ENV
 
 Restart=on-failure
 RestartSec=5s

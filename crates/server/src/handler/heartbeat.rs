@@ -1,34 +1,21 @@
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::extract::State;
 use core_watch::dto::api::{ApiResponse, DefaultApiResponse};
-use core_watch::logging::warn;
-use core_watch::dto::http_payloads::{Heartbeat};
+use core_watch::logging::error;
 use reqwest::StatusCode;
-use std::time::Instant;
-use crate::model::state::AppState;
+use crate::domain::state::AppState;
+use crate::extractor::AuthenticatedAgent;
 
 pub(crate) async fn heartbeat(
+    AuthenticatedAgent(agent): AuthenticatedAgent,
     State(state): State<AppState>,
-    Json(req): Json<Heartbeat>,
-) -> ApiResponse {
-    let Some(mut agent) = state.agents.get_mut(&req.hostname) else {
-        warn!("HEARTBEAT from unknown node={}. Suggesting registration...", req.hostname);
-        return ApiResponse::Error(StatusCode::NOT_FOUND, Json(DefaultApiResponse {
+) -> ApiResponse<DefaultApiResponse> {
+    if let Err(e) = state.db.update_agent_last_seen(&agent.agent_id).await {
+        error!("Failed to update heartbeat for agent {}: {}", agent.name(), e);
+        return ApiResponse::Error(StatusCode::INTERNAL_SERVER_ERROR, axum::Json(DefaultApiResponse {
             success: false,
-            message: Some("Agent not registered. Please register first.".to_string()),
-        }));
-    };
-
-    if agent.uuid != req.uuid {
-        warn!("HEARTBEAT UUID mismatch for hostname={}. Expected {} but got {}", req.hostname, agent.uuid, req.uuid);
-        return ApiResponse::Error(StatusCode::FORBIDDEN, Json(DefaultApiResponse {
-            success: false,
-            message: Some("UUID does not match registered agent identity.".to_string()),
+            message: Some(format!("Failed to update heartbeat: {}", e)),
         }));
     }
 
-    agent.last_seen = Instant::now();
     ApiResponse::StatusOnly(StatusCode::OK)
 }

@@ -24,33 +24,20 @@ async fn main() -> Result<()> {
     
     core_watch::logging::init(&config.log_level);
 
-    let identity = match AgentIdentity::load_or_create() {
-        Ok(id) => id,
-        Err(e) => {
-            error!("Failed to load or create agent identity: {:#}", e);
-            info!("Shutting down agent...");
-            std::process::exit(1);
-        }
-    };
+    let identity = self::init_agent_identity(&config).await?;
     
     let client = reqwest::Client::new();
-    let api = ApiClient::new(client.clone(), &config.piwatch_server_url, identity.uuid)?;
+    let api = ApiClient::new(client.clone(), &config.piwatch_server_url, identity)?;
     let ip_listener = Arc::new(
         IpChangeListener::init(api.clone(), &config.listening_interface).await?
     );
 
     let ip = ip_listener.get_current_ip().await.map(|ip| ip.to_string());
+    if let Err(e) = api.reconcile_ip(ip).await {
+        error!("Failed to reconcile IP on startup: {:#}", e);
+    }
 
-    match api.register_agent(ip).await {
-        Ok(_) => info!("Successfully registered agent."),
-        Err(e) => {
-            error!("Failed to register agent: {:#}", e);
-            info!("Shutting down agent...");
-            std::process::exit(1);
-        }
-    };
-
-    let heartbeat_handle = start_heartbeat(api.clone(), ip_listener.clone());
+    let heartbeat_handle = start_heartbeat(api.clone());
     let ip_listener_handle = ip_listener.start();
     
     info!("Node started");
@@ -62,4 +49,26 @@ async fn main() -> Result<()> {
 
     error!("A critical task stopped, shutting down agent");
     std::process::exit(1);
+}
+
+async fn init_agent_identity(config: &crate::config::Config) -> Result<AgentIdentity> {
+    let identity = match AgentIdentity::load() {
+        Ok(id) => id,
+        Err(_) => {
+            let client = reqwest::Client::new();
+            let temp_api = ApiClient::new(client.clone(), &config.piwatch_server_url, AgentIdentity {
+                agent_id: String::new(),
+                agent_secret: String::new(),
+            })?;
+            match temp_api.register_agent().await {
+                Ok(id) => id,
+                Err(e) => {
+                    error!("Failed to register agent: {:#}", e);
+                    info!("Shutting down agent...");
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+    Ok(identity)
 }

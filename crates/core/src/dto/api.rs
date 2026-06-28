@@ -11,13 +11,13 @@ pub struct DefaultApiResponse {
     pub message: Option<String>,
 }
 
-pub enum ApiResponse {
-    Success(StatusCode, Json<DefaultApiResponse>),
+pub enum ApiResponse<T> {
+    Success(StatusCode, Json<T>),
     Error(StatusCode, Json<DefaultApiResponse>),
     StatusOnly(StatusCode),
 }
 
-impl IntoResponse for ApiResponse {
+impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
         match self {
             ApiResponse::Success(code, body) => (code, body).into_response(),

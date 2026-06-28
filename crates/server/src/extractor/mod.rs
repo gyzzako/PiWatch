@@ -1,2 +1,2 @@
 pub mod auth;
-pub use auth::AuthenticatedAgent;
+pub(crate) use auth::AuthenticatedAgent;

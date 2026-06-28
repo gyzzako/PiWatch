@@ -17,6 +17,8 @@ sha2 = "0.10"
 rand = "0.9"
 hex = "0.4"
 rusqlite = { version = "0.32", features = ["bundled"] }
+thiserror = "1"
+async-trait = "0.1"
 
 [[bin]]
 name = "PiWatch"

@@ -6,12 +6,12 @@ use crate::api_client::ApiClient;
 use core_watch::{dto::api::DefaultApiResponse, logging::{error, warn}};
 use reqwest::StatusCode;
 
-pub struct HeartbeatResponse {
+pub(crate) struct HeartbeatResponse {
     pub status: StatusCode,
     pub body: DefaultApiResponse,
 }
 
-pub fn start_heartbeat(api: ApiClient) -> JoinHandle<()> {
+pub(crate) fn start_heartbeat(api: ApiClient) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match api.send_heartbeat().await {

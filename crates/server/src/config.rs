@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use core_watch::config::log::{logging::LevelFilter};
 
-const CONFIG_PATH: &'static str = "config.json";
+const CONFIG_PATH: &str = "config.json";
 const DEFAULT_BIND_PORT: u16 = 8888;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+pub(crate) struct Config {
     pub pihole_url: String,
     pub pihole_pass: String,
     pub bind_port: u16,
@@ -35,7 +35,7 @@ struct PartialConfig {
     pub hostname_suffix: Option<String>,
 }
 
-pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
+pub(crate) fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     let mut config = load_from_file_or_default()?;
     apply_env_overrides(&mut config);
 

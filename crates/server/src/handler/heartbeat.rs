@@ -9,7 +9,7 @@ pub(crate) async fn heartbeat(
     AuthenticatedAgent(agent): AuthenticatedAgent,
     State(state): State<AppState>,
 ) -> ApiResponse<DefaultApiResponse> {
-    if let Err(e) = state.db.update_agent_last_seen(&agent.agent_id).await {
+    if let Err(e) = state.agent_service.heartbeat(&agent.agent_id).await {
         error!("Failed to update heartbeat for agent {}: {}", agent.name(), e);
         return ApiResponse::Error(StatusCode::INTERNAL_SERVER_ERROR, axum::Json(DefaultApiResponse {
             success: false,

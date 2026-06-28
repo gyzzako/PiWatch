@@ -8,7 +8,7 @@ const DEFAULT_BIND_PORT: u16 = 8887;
 const DEFAULT_LISTENING_INTERFACE: &str = "eth0";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+pub(crate) struct Config {
     pub piwatch_server_url: String,
     pub listening_interface: String,
     pub bind_port: u16,
@@ -16,7 +16,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentIdentity {
+pub(crate) struct AgentIdentity {
     pub agent_id: String,
     pub agent_secret: String,
 }
@@ -66,7 +66,7 @@ struct PartialConfig {
     pub log_level: Option<String>,
 }
 
-pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
+pub(crate) fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     let mut config = load_from_file_or_default()?;
     apply_env_overrides(&mut config);
     Ok(config)

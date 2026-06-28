@@ -4,10 +4,11 @@ use axum::{
 };
 use core_watch::{dto::api::{ApiResponse, DefaultApiResponse}};
 use core_watch::logging::{warn, debug};
-use crate::domain::security::{verify};
+use crate::domain::security::CryptoService;
 use crate::domain::state::AppState;
+use crate::domain::model::Agent;
 
-pub struct AuthenticatedAgent(pub(crate) crate::domain::state::Agent);
+pub(crate) struct AuthenticatedAgent(pub(crate) Agent);
 
 impl<S> FromRequestParts<S> for AuthenticatedAgent
 where
@@ -19,7 +20,7 @@ where
     fn from_request_parts(parts: &mut Parts, state: &S) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
         async move {
             let app_state = AppState::from_ref(state);
-            
+
             let agent_id = parts.headers.get("X-Agent-Id")
                 .and_then(|v| v.to_str().ok())
                 .ok_or_else(|| {
@@ -40,7 +41,7 @@ where
                     }))
                 })?;
 
-            let agent = match app_state.db.get_agent(agent_id).await {
+            let agent = match app_state.agent_service.get_agent(agent_id).await {
                 Ok(Some(a)) => a,
                 Ok(None) => {
                     warn!("Authentication failed: unknown agent_id={}", agent_id);
@@ -66,7 +67,7 @@ where
                 })));
             }
 
-            let valid = verify(agent_secret, &agent.salt, &agent.secret_hash);
+            let valid = CryptoService::verify(agent_secret, &agent.salt, &agent.secret_hash);
             if !valid {
                 warn!("Authentication failed: invalid secret for agent={}", agent.name());
                 return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
@@ -75,7 +76,7 @@ where
                 })));
             }
 
-            if let Err(e) = app_state.db.update_agent_last_seen(&agent.agent_id).await {
+            if let Err(e) = app_state.agent_service.heartbeat(&agent.agent_id).await {
                 warn!("Failed to update agent={} last seen: {}", agent.name(), e);
             }
 

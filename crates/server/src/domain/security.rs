@@ -1,33 +1,37 @@
 use sha2::{Sha256, Digest};
 use rand::RngCore;
 
-pub fn generate_secret() -> String {
-    let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
-    hex::encode(bytes)
-}
+pub(crate) struct CryptoService;
 
-pub fn generate_salt() -> String {
-     let mut bytes = [0u8; 16];
-     rand::rng().fill_bytes(&mut bytes);
-     hex::encode(bytes)
-}
+impl CryptoService {
+    pub fn generate_secret() -> String {
+        let mut bytes = [0u8; 32];
+        rand::rng().fill_bytes(&mut bytes);
+        hex::encode(bytes)
+    }
 
-pub fn hash_with_salt(token: &str, salt_hex: &str) -> String {
-    let salt = salt_bytes(salt_hex);
+    pub fn generate_salt() -> String {
+         let mut bytes = [0u8; 16];
+         rand::rng().fill_bytes(&mut bytes);
+         hex::encode(bytes)
+    }
 
-    let mut hasher = Sha256::new();
-    hasher.update(&salt);
-    hasher.update(token.as_bytes());
+    pub fn hash_with_salt(token: &str, salt_hex: &str) -> String {
+        let salt = Self::salt_bytes(salt_hex);
 
-    hex::encode(hasher.finalize())
-}
+        let mut hasher = Sha256::new();
+        hasher.update(&salt);
+        hasher.update(token.as_bytes());
 
-pub fn verify(token: &str, salt_hex: &str, expected_hash: &str) -> bool {
-    hash_with_salt(token, salt_hex) == expected_hash
-}
+        hex::encode(hasher.finalize())
+    }
 
-fn salt_bytes(salt_hex: &str) -> Vec<u8> {
-    hex::decode(salt_hex)
-        .expect("invalid salt")
+    pub fn verify(token: &str, salt_hex: &str, expected_hash: &str) -> bool {
+        Self::hash_with_salt(token, salt_hex) == expected_hash
+    }
+
+    fn salt_bytes(salt_hex: &str) -> Vec<u8> {
+        hex::decode(salt_hex)
+            .expect("invalid salt")
+    }
 }

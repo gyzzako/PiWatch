@@ -13,6 +13,9 @@ pub(crate) enum Error {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Version mismatch: {0}")]
+    VersionMismatch(String),
+
     #[error("Bad request: {0}")]
     BadRequest(String),
 

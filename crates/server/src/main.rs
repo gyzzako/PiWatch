@@ -7,6 +7,7 @@ mod config;
 mod service;
 mod error;
 mod extractor;
+mod version;
 
 use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
@@ -32,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     core_watch::logging::init(&config.log_level);
 
     let http_client = reqwest::Client::builder()
-        .user_agent(format!("PiWatch-server/v{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("PiWatch-server/{}", env!("CARGO_PKG_VERSION")))
         .build()?;
 
     let db = SqliteDatabase::new(DB_PATH).await?;

@@ -59,6 +59,15 @@ where
                 }
             };
 
+            if let Err(e) = crate::version::check_compatible(&agent.agent_version, env!("CARGO_PKG_VERSION"))
+            {
+                warn!("Reconnection rejected for agent={}: version mismatch: {}", agent.name(), e);
+                return Err(ApiResponse::Error(StatusCode::UPGRADE_REQUIRED, axum::Json(DefaultApiResponse {
+                    success: false,
+                    message: Some(format!("Version mismatch: {}", e)),
+                })));
+            }
+
             if agent.revoked {
                 warn!("Authentication failed: agent {} is revoked", agent.name());
                 return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {

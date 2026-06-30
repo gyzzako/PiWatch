@@ -5,7 +5,7 @@ pub(crate) struct Agent {
     pub agent_id: String,
     pub secret_hash: String,
     pub salt: String,
-    pub hostname: Option<String>,
+    pub hostname: String,
     pub agent_version: String,
     pub ipv4: Option<String>,
     pub last_seen_secs: u64,
@@ -16,7 +16,7 @@ pub(crate) struct Agent {
 
 impl Agent {
     pub fn name(&self) -> String {
-        self.hostname.clone().unwrap_or_else(|| self.agent_id.clone())
+        self.hostname.clone()
     }
 }
 

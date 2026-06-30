@@ -29,6 +29,8 @@ impl AgentService {
             return Err(Error::Unauthorized);
         }
 
+        crate::version::check_compatible(&payload.agent_version, env!("CARGO_PKG_VERSION"))?;
+
         let existing = self.repo.get_agent_by_hostname(&payload.hostname).await?;
         if let Some(a) = existing {
             return Err(Error::Conflict(format!(
@@ -51,7 +53,7 @@ impl AgentService {
             agent_id: agent_id.clone(),
             secret_hash,
             salt,
-            hostname: Some(payload.hostname.clone()),
+            hostname: payload.hostname.clone(),
             agent_version: payload.agent_version,
             ipv4: None,
             last_seen_secs: now,
@@ -78,7 +80,7 @@ impl AgentService {
         info!("Received IP reconciliation for agent={} ip={}", agent.name(), ip);
 
         self.pihole
-            .reconcile_ip_for_hostname(agent.hostname.as_deref().unwrap_or("unknown"), &ip)
+            .reconcile_ip_for_hostname(&agent.hostname, &ip)
             .await
             .map_err(|e| Error::Internal(format!("DNS reconciliation failed: {}", e)))?;
 

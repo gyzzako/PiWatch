@@ -19,6 +19,10 @@ pub(crate) async fn register(
             success: false,
             message: Some("Invalid install token".to_string()),
         })),
+        Err(Error::VersionMismatch(msg)) => ApiResponse::Error(StatusCode::UPGRADE_REQUIRED, Json(DefaultApiResponse {
+            success: false,
+            message: Some(msg),
+        })),
         Err(Error::Conflict(msg)) => ApiResponse::Error(StatusCode::CONFLICT, Json(DefaultApiResponse {
             success: false,
             message: Some(msg),

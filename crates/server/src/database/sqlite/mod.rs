@@ -1,49 +1,30 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use rusqlite::Connection;
+use sqlx::SqlitePool;
 use crate::error::Result;
 
 pub(crate) struct SqliteDatabase {
-    conn: Arc<Mutex<Connection>>,
+    pool: SqlitePool,
 }
 
 impl SqliteDatabase {
     pub async fn new(database_path: &str) -> Result<Self> {
-        let conn = Connection::open(database_path)?;
+        let pool = SqlitePool::connect(database_path).await?;
 
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS agents (
-                agent_id TEXT PRIMARY KEY NOT NULL,
-                secret_hash TEXT NOT NULL,
-                salt TEXT NOT NULL,
-                hostname TEXT NOT NULL,
-                agent_version TEXT NOT NULL,
-                ipv4 TEXT,
-                last_seen INTEGER NOT NULL,
-                created_at INTEGER NOT NULL,
-                revoked INTEGER NOT NULL DEFAULT 0,
-                deactivated_at INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS install_tokens (
-                token_hash TEXT PRIMARY KEY NOT NULL,
-                salt TEXT NOT NULL DEFAULT ''
-            );",
-        )?;
+        migration::run_migrations(&pool).await?;
+        migration::verify_migrations(&pool).await?;
 
-        Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
-        })
+        Ok(Self { pool })
     }
 
-    pub(crate) fn conn(&self) -> &Arc<Mutex<Connection>> {
-        &self.conn
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
     }
 
     pub fn agent_repository(&self) -> SqliteAgentRepository {
-        SqliteAgentRepository::new(self.conn().clone())
+        SqliteAgentRepository::new(self.pool().clone())
     }
 }
 
-mod agent_repo;
+mod repository;
+mod migration;
 
-pub(crate) use agent_repo::{SqliteAgentRepository};
+pub(crate) use repository::SqliteAgentRepository;

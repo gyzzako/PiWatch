@@ -1,10 +1,10 @@
 use thiserror::Error;
-use rusqlite::Error as RusqliteError;
+use sqlx::Error as SqlxError;
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
     #[error("Database error: {0}")]
-    Database(#[from] RusqliteError),
+    Database(#[from] SqlxError),
 
     #[allow(dead_code)]
     #[error("Not found")]

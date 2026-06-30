@@ -13,13 +13,13 @@ use crate::error::{Error, Result};
 use crate::pihole::client::PiholeClient;
 
 pub(crate) struct AgentService {
-    repo: Arc<dyn AgentRepository>,
+    agent_repo: Arc<dyn AgentRepository>,
     pihole: Arc<PiholeClient>,
 }
 
 impl AgentService {
-    pub fn new(repo: Arc<dyn AgentRepository>, pihole: Arc<PiholeClient>) -> Self {
-        Self { repo, pihole }
+    pub fn new(agent_repo: Arc<dyn AgentRepository>, pihole: Arc<PiholeClient>) -> Self {
+        Self { agent_repo, pihole }
     }
 
     pub async fn register(&self, payload: RegisterPayload) -> Result<RegisterResponse> {
@@ -31,7 +31,7 @@ impl AgentService {
 
         crate::version::check_compatible(&payload.agent_version, env!("CARGO_PKG_VERSION"))?;
 
-        let existing = self.repo.get_agent_by_hostname(&payload.hostname).await?;
+        let existing = self.agent_repo.get_agent_by_hostname(&payload.hostname).await?;
         if let Some(a) = existing {
             return Err(Error::Conflict(format!(
                 "Hostname {} already registered as agent_id={}",
@@ -62,7 +62,7 @@ impl AgentService {
             deactivated_at: None,
         };
 
-        self.repo.create_agent(&agent).await?;
+        self.agent_repo.create_agent(&agent).await?;
 
         debug!("Agent {} registered successfully", agent.name());
 
@@ -84,23 +84,23 @@ impl AgentService {
             .await
             .map_err(|e| Error::Internal(format!("DNS reconciliation failed: {}", e)))?;
 
-        self.repo.update_agent_ip(&agent.agent_id, &ip).await?;
+        self.agent_repo.update_agent_ip(&agent.agent_id, &ip).await?;
 
         info!("Reconciled IP for agent={} ip={}", agent.name(), ip);
         Ok(())
     }
 
     pub async fn heartbeat(&self, agent_id: &str) -> Result<()> {
-        self.repo.update_agent_last_seen(agent_id).await?;
+        self.agent_repo.update_agent_last_seen(agent_id).await?;
         Ok(())
     }
 
     pub async fn list_agents(&self) -> Result<Vec<Agent>> {
-        self.repo.list_agents().await
+        self.agent_repo.list_agents().await
     }
 
     pub async fn list_agent_summaries(&self) -> Result<Vec<AgentSummary>> {
-        let agents = self.repo.list_agents().await?;
+        let agents = self.agent_repo.list_agents().await?;
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -127,15 +127,15 @@ impl AgentService {
     }
 
     pub async fn get_agent(&self, agent_id: &str) -> Result<Option<Agent>> {
-        self.repo.get_agent(agent_id).await
+        self.agent_repo.get_agent(agent_id).await
     }
 
     pub async fn validate_install_token(&self, plaintext: &str) -> Result<bool> {
-        self.repo.validate_install_token(plaintext).await
+        self.agent_repo.validate_install_token(plaintext).await
     }
 
     pub fn start_monitor(&self) -> JoinHandle<()> {
-        let repo = self.repo.clone();
+        let repo = self.agent_repo.clone();
         tokio::spawn(async move {
             loop {
                 let agents = match repo.list_agents_with_last_seen().await {

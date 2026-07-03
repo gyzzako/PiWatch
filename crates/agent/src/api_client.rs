@@ -12,6 +12,7 @@ pub(crate) struct ApiClient {
     server_url: String,
     hostname: String,
     identity: AgentIdentity,
+    agent_version: String,
 }
 
 impl ApiClient {
@@ -21,6 +22,7 @@ impl ApiClient {
             server_url: piwatch_server_url.to_string(),
             hostname: hostname::get()?.to_string_lossy().to_string(),
             identity,
+            agent_version: env!("CARGO_PKG_VERSION").to_string(),
         })
     }
 
@@ -63,6 +65,7 @@ impl ApiClient {
             .post(format!("{}/heartbeat", self.server_url))
             .header("X-Agent-Id", &self.identity.agent_id)
             .header("X-Agent-Secret", &self.identity.agent_secret)
+            .header("X-Agent-Version", &self.agent_version)
             .send()
             .await?;
 
@@ -84,6 +87,7 @@ impl ApiClient {
             .post(format!("{}/reconcile", self.server_url))
             .header("X-Agent-Id", &self.identity.agent_id)
             .header("X-Agent-Secret", &self.identity.agent_secret)
+            .header("X-Agent-Version", &self.agent_version)
             .json(&IpReconciliationPayload {
                 hostname: self.hostname.to_string(),
                 ipv4,

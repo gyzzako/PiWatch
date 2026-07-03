@@ -90,6 +90,10 @@ impl AgentService {
         Ok(())
     }
 
+    pub async fn update_agent_version(&self, agent_id: &str, version: &str) -> Result<()> {
+        self.agent_repo.update_agent_version(agent_id, version).await
+    }
+
     pub async fn heartbeat(&self, agent_id: &str) -> Result<()> {
         self.agent_repo.update_agent_last_seen(agent_id).await?;
         Ok(())

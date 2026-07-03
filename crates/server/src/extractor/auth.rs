@@ -59,12 +59,12 @@ where
                 }
             };
 
-            if let Err(e) = crate::version::check_compatible(&agent.agent_version, env!("CARGO_PKG_VERSION"))
-            {
-                warn!("Reconnection rejected for agent={}: version mismatch: {}", agent.name(), e);
-                return Err(ApiResponse::Error(StatusCode::UPGRADE_REQUIRED, axum::Json(DefaultApiResponse {
+            let valid = CryptoService::verify(agent_secret, &agent.salt, &agent.secret_hash);
+            if !valid {
+                warn!("Authentication failed: invalid secret for agent={}", agent.name());
+                return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
                     success: false,
-                    message: Some(format!("Version mismatch: {}", e)),
+                    message: Some("Invalid agent secret".to_string()),
                 })));
             }
 
@@ -76,16 +76,30 @@ where
                 })));
             }
 
-            let valid = CryptoService::verify(agent_secret, &agent.salt, &agent.secret_hash);
-            if !valid {
-                warn!("Authentication failed: invalid secret for agent={}", agent.name());
-                return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
+            let agent = if let Some(claimed_version) = parts.headers.get("X-Agent-Version")
+                .and_then(|v| v.to_str().ok())
+                .filter(|v| !v.is_empty())
+            {
+                if claimed_version != agent.agent_version {
+                    if let Err(e) = app_state.agent_service.update_agent_version(&agent.agent_id, claimed_version).await {
+                        warn!("Failed to update version for agent {}: {}", agent.name(), e);
+                    }
+                }
+                Agent { agent_version: claimed_version.to_string(), ..agent }
+            } else {
+                agent
+            };
+
+            if let Err(e) = crate::version::check_compatible(&agent.agent_version, env!("CARGO_PKG_VERSION"))
+            {
+                warn!("Agent {} has incompatible version {} (server requires {})", agent.name(), agent.agent_version, env!("CARGO_PKG_VERSION"));
+                return Err(ApiResponse::Error(StatusCode::UPGRADE_REQUIRED, axum::Json(DefaultApiResponse {
                     success: false,
-                    message: Some("Invalid agent secret".to_string()),
+                    message: Some(format!("Version mismatch: {}", e)),
                 })));
             }
 
-            if let Err(e) = app_state.agent_service.heartbeat(&agent.agent_id).await {
+            if agent.deactivated_at.is_some() && let Err(e) = app_state.agent_service.heartbeat(&agent.agent_id).await {
                 warn!("Failed to update agent={} last seen: {}", agent.name(), e);
             }
 

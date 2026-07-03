@@ -9,6 +9,7 @@ pub(crate) trait AgentRepository: Send + Sync {
     async fn get_agent_by_hostname(&self, hostname: &str) -> Result<Option<Agent>>;
     async fn update_agent_last_seen(&self, agent_id: &str) -> Result<()>;
     async fn update_agent_ip(&self, agent_id: &str, ipv4: &str) -> Result<()>;
+    async fn update_agent_version(&self, agent_id: &str, version: &str) -> Result<()>;
     #[allow(dead_code)]
     async fn revoke_agent(&self, agent_id: &str) -> Result<()>;
     #[allow(dead_code)]

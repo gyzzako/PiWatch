@@ -111,6 +111,15 @@ impl AgentRepository for SqliteAgentRepository {
         Ok(())
     }
 
+    async fn update_agent_version(&self, agent_id: &str, version: &str) -> Result<()> {
+        sqlx::query("UPDATE agents SET agent_version = ?1 WHERE agent_id = ?2")
+            .bind(version)
+            .bind(agent_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     #[allow(dead_code)]
     async fn revoke_agent(&self, agent_id: &str) -> Result<()> {
         sqlx::query("UPDATE agents SET revoked = 1 WHERE agent_id = ?1")

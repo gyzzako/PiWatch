@@ -17,12 +17,16 @@ pub(crate) trait AgentRepository: Send + Sync {
     async fn set_agent_deactivated(&self, agent_id: &str) -> Result<()>;
     async fn list_agents(&self) -> Result<Vec<Agent>>;
     async fn list_agents_with_last_seen(&self) -> Result<Vec<(String, u64)>>;
-    async fn create_install_token(&self, token: &InstallToken) -> Result<()>;
-    async fn validate_install_token(&self, plaintext: &str) -> Result<bool>;
 }
 
 #[async_trait]
 pub(crate) trait AgentAuthRepository: Send + Sync {
     async fn create_agent_auth(&self, auth: &AgentAuth) -> Result<()>;
     async fn get_agent_auth(&self, agent_id: &str) -> Result<Option<AgentAuth>>;
+}
+
+#[async_trait]
+pub(crate) trait InstallTokenRepository: Send + Sync {
+    async fn create_install_token(&self, token: &InstallToken) -> Result<()>;
+    async fn validate_install_token(&self, plaintext: &str) -> Result<bool>;
 }

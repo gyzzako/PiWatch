@@ -26,6 +26,10 @@ impl SqliteDatabase {
     pub fn auth_repository(&self) -> SqliteAgentAuthRepository {
         SqliteAgentAuthRepository::new(self.pool().clone())
     }
+
+    pub fn token_repository(&self) -> SqliteInstallTokenRepository {
+        SqliteInstallTokenRepository::new(self.pool().clone())
+    }
 }
 
 mod repository;
@@ -33,3 +37,4 @@ mod migration;
 
 pub(crate) use repository::SqliteAgentRepository;
 pub(crate) use repository::SqliteAgentAuthRepository;
+pub(crate) use repository::SqliteInstallTokenRepository;

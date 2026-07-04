@@ -13,7 +13,7 @@ use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
 use core_watch::logging::{info, error, warn};
 use crate::{
-    config::load_config, database::sqlite::SqliteDatabase, domain::{model::InstallToken, repository::AgentRepository}, handler::{
+    config::load_config, database::sqlite::SqliteDatabase, domain::{model::InstallToken, repository::InstallTokenRepository}, handler::{
         agent::{reconcile_ip, register}, heartbeat::heartbeat, metric::{list_agents, stats},
     }, pihole::client::PiholeClient, service::AgentService,
 };
@@ -37,11 +37,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let db = SqliteDatabase::new(DB_PATH).await?;
-    self::setup_install_token(&db.agent_repository()).await;
+    self::setup_install_token(&db.token_repository()).await;
 
     let agent_service = Arc::new(AgentService::new(
         Arc::new(db.agent_repository()),
         Arc::new(db.auth_repository()),
+        Arc::new(db.token_repository()),
         Arc::new(PiholeClient::new(http_client, config.clone())),
     ));
 
@@ -72,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::process::exit(1);
 }
 
-async fn setup_install_token(repo: &impl AgentRepository) {
+async fn setup_install_token(repo: &impl InstallTokenRepository) {
     let tokens_env = std::env::var("PIWATCH_INSTALL_TOKEN");
     let token = match tokens_env {
         Ok(env) => env.trim().to_string(),

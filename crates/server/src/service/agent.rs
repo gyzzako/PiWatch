@@ -6,7 +6,7 @@ use core_watch::dto::http_payloads::{RegisterPayload, RegisterResponse};
 use core_watch::logging::{warn, debug, info};
 
 use crate::domain::model::{Agent, AgentAuth};
-use crate::domain::repository::{AgentRepository, AgentAuthRepository};
+use crate::domain::repository::{AgentRepository, AgentAuthRepository, InstallTokenRepository};
 use crate::domain::security::CryptoService;
 use crate::dto::agent_summary::AgentSummary;
 use crate::error::{Error, Result};
@@ -15,12 +15,13 @@ use crate::pihole::client::PiholeClient;
 pub(crate) struct AgentService {
     agent_repo: Arc<dyn AgentRepository>,
     auth_repo: Arc<dyn AgentAuthRepository>,
+    token_repo: Arc<dyn InstallTokenRepository>,
     pihole: Arc<PiholeClient>,
 }
 
 impl AgentService {
-    pub fn new(agent_repo: Arc<dyn AgentRepository>, auth_repo: Arc<dyn AgentAuthRepository>, pihole: Arc<PiholeClient>) -> Self {
-        Self { agent_repo, auth_repo, pihole }
+    pub fn new(agent_repo: Arc<dyn AgentRepository>, auth_repo: Arc<dyn AgentAuthRepository>, token_repo: Arc<dyn InstallTokenRepository>, pihole: Arc<PiholeClient>) -> Self {
+        Self { agent_repo, auth_repo, token_repo, pihole }
     }
 
     pub async fn register(&self, payload: RegisterPayload) -> Result<RegisterResponse> {
@@ -161,7 +162,7 @@ impl AgentService {
     }
 
     pub async fn validate_install_token(&self, plaintext: &str) -> Result<bool> {
-        self.agent_repo.validate_install_token(plaintext).await
+        self.token_repo.validate_install_token(plaintext).await
     }
 
     pub fn start_monitor(&self) -> JoinHandle<()> {

@@ -16,6 +16,9 @@ uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 rand = "0.9"
 hex = "0.4"
+pbkdf2 = "0.12"
+base64 = "0.22"
+subtle = "2"
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 thiserror = "1"
 async-trait = "0.1"

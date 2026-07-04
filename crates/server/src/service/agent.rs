@@ -5,8 +5,8 @@ use tokio::task::JoinHandle;
 use core_watch::dto::http_payloads::{RegisterPayload, RegisterResponse};
 use core_watch::logging::{warn, debug, info};
 
-use crate::domain::model::Agent;
-use crate::domain::repository::AgentRepository;
+use crate::domain::model::{Agent, AgentAuth};
+use crate::domain::repository::{AgentRepository, AgentAuthRepository};
 use crate::domain::security::CryptoService;
 use crate::dto::agent_summary::AgentSummary;
 use crate::error::{Error, Result};
@@ -14,12 +14,13 @@ use crate::pihole::client::PiholeClient;
 
 pub(crate) struct AgentService {
     agent_repo: Arc<dyn AgentRepository>,
+    auth_repo: Arc<dyn AgentAuthRepository>,
     pihole: Arc<PiholeClient>,
 }
 
 impl AgentService {
-    pub fn new(agent_repo: Arc<dyn AgentRepository>, pihole: Arc<PiholeClient>) -> Self {
-        Self { agent_repo, pihole }
+    pub fn new(agent_repo: Arc<dyn AgentRepository>, auth_repo: Arc<dyn AgentAuthRepository>, pihole: Arc<PiholeClient>) -> Self {
+        Self { agent_repo, auth_repo, pihole }
     }
 
     pub async fn register(&self, payload: RegisterPayload) -> Result<RegisterResponse> {
@@ -51,8 +52,6 @@ impl AgentService {
 
         let agent = Agent {
             agent_id: agent_id.clone(),
-            secret_hash,
-            salt,
             hostname: payload.hostname.clone(),
             agent_version: payload.agent_version,
             ipv4: None,
@@ -63,6 +62,14 @@ impl AgentService {
         };
 
         self.agent_repo.create_agent(&agent).await?;
+
+        let auth = AgentAuth {
+            agent_auth_id: uuid::Uuid::new_v4().to_string(),
+            agent_id: agent_id.clone(),
+            secret_hash,
+            salt,
+        };
+        self.auth_repo.create_agent_auth(&auth).await?;
 
         debug!("Agent {} registered successfully", agent.name());
 
@@ -132,6 +139,25 @@ impl AgentService {
 
     pub async fn get_agent(&self, agent_id: &str) -> Result<Option<Agent>> {
         self.agent_repo.get_agent(agent_id).await
+    }
+
+    pub async fn authenticate(&self, agent_id: &str, secret: &str) -> Result<Agent> {
+        let agent = self.get_agent(agent_id).await?
+            .ok_or_else(|| Error::Unauthorized)?;
+        
+        let auth = self.auth_repo.get_agent_auth(agent_id).await?
+            .ok_or_else(|| Error::Unauthorized)?;
+        
+        let valid = CryptoService::verify(secret, &auth.salt, &auth.secret_hash);
+        if !valid {
+            return Err(Error::Unauthorized);
+        }
+
+        if agent.revoked {
+            return Err(Error::Unauthorized);
+        }
+
+        Ok(agent)
     }
 
     pub async fn validate_install_token(&self, plaintext: &str) -> Result<bool> {

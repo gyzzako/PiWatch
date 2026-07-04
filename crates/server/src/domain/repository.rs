@@ -1,6 +1,6 @@
 use crate::error::Result;
 use async_trait::async_trait;
-use crate::domain::{model::{Agent, InstallToken}};
+use crate::domain::{model::{Agent, InstallToken, AgentAuth}};
 
 #[async_trait]
 pub(crate) trait AgentRepository: Send + Sync {
@@ -19,4 +19,10 @@ pub(crate) trait AgentRepository: Send + Sync {
     async fn list_agents_with_last_seen(&self) -> Result<Vec<(String, u64)>>;
     async fn create_install_token(&self, token: &InstallToken) -> Result<()>;
     async fn validate_install_token(&self, plaintext: &str) -> Result<bool>;
+}
+
+#[async_trait]
+pub(crate) trait AgentAuthRepository: Send + Sync {
+    async fn create_agent_auth(&self, auth: &AgentAuth) -> Result<()>;
+    async fn get_agent_auth(&self, agent_id: &str) -> Result<Option<AgentAuth>>;
 }

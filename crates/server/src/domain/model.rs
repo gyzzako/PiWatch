@@ -3,8 +3,6 @@ use std::time::SystemTime;
 #[derive(Clone)]
 pub(crate) struct Agent {
     pub agent_id: String,
-    pub secret_hash: String,
-    pub salt: String,
     pub hostname: String,
     pub agent_version: String,
     pub ipv4: Option<String>,
@@ -18,6 +16,14 @@ impl Agent {
     pub fn name(&self) -> String {
         self.hostname.clone()
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct AgentAuth {
+    pub agent_auth_id: String,
+    pub agent_id: String,
+    pub secret_hash: String,
+    pub salt: String,
 }
 
 #[derive(Clone)]

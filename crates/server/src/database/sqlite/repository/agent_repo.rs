@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use sqlx::SqlitePool;
+use crate::domain::repository::AgentRepository;
+use crate::{domain::model::Agent, error::Result, InstallToken};
 use crate::domain::security::CryptoService;
-use crate::{domain::repository::AgentRepository, error::Result, InstallToken};
-use crate::domain::model::Agent;
 use std::time::{Duration, SystemTime};
 
 pub(crate) struct SqliteAgentRepository {
@@ -23,8 +23,6 @@ impl SqliteAgentRepository {
 
     fn map_row(
         agent_id: String,
-        secret_hash: String,
-        salt: String,
         hostname: String,
         agent_version: String,
         ipv4: Option<String>,
@@ -35,8 +33,6 @@ impl SqliteAgentRepository {
     ) -> Agent {
         Agent {
             agent_id,
-            secret_hash,
-            salt,
             hostname,
             agent_version,
             ipv4,
@@ -53,12 +49,10 @@ impl AgentRepository for SqliteAgentRepository {
     async fn create_agent(&self, agent: &Agent) -> Result<()> {
         let now: i64 = Self::now_secs();
         sqlx::query(
-            "INSERT OR REPLACE INTO agent (agent_id, secret_hash, salt, hostname, agent_version, ipv4, last_seen, created_at, revoked)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            "INSERT OR REPLACE INTO agent (agent_id, hostname, agent_version, ipv4, last_seen, created_at, revoked)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
         )
         .bind(&agent.agent_id)
-        .bind(&agent.secret_hash)
-        .bind(&agent.salt)
         .bind(&agent.hostname)
         .bind(&agent.agent_version)
         .bind(&agent.ipv4)
@@ -71,25 +65,25 @@ impl AgentRepository for SqliteAgentRepository {
     }
 
     async fn get_agent(&self, agent_id: &str) -> Result<Option<Agent>> {
-        let row = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
-            "SELECT agent_id, secret_hash, salt, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent WHERE agent_id = ?"
+        let row = sqlx::query_as::<_, (String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
+            "SELECT agent_id, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent WHERE agent_id = ?"
         )
         .bind(agent_id)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|(a, b, c, d, e, f, g, h, i, j)| Self::map_row(a, b, c, d, e, f, g, h, i, j)))
+        Ok(row.map(|(a, b, c, d, e, f, g, h)| Self::map_row(a, b, c, d, e, f, g, h)))
     }
 
     async fn get_agent_by_hostname(&self, hostname: &str) -> Result<Option<Agent>> {
-        let row = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
-            "SELECT agent_id, secret_hash, salt, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent WHERE hostname = ?"
+        let row = sqlx::query_as::<_, (String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
+            "SELECT agent_id, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent WHERE hostname = ?"
         )
         .bind(hostname)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|(a, b, c, d, e, f, g, h, i, j)| Self::map_row(a, b, c, d, e, f, g, h, i, j)))
+        Ok(row.map(|(a, b, c, d, e, f, g, h)| Self::map_row(a, b, c, d, e, f, g, h)))
     }
 
     async fn update_agent_last_seen(&self, agent_id: &str) -> Result<()> {
@@ -151,13 +145,13 @@ impl AgentRepository for SqliteAgentRepository {
     }
 
     async fn list_agents(&self) -> Result<Vec<Agent>> {
-        let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
-            "SELECT agent_id, secret_hash, salt, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent"
+        let rows = sqlx::query_as::<_, (String, String, String, Option<String>, i64, i64, i64, Option<i64>)>(
+            "SELECT agent_id, hostname, agent_version, ipv4, last_seen, created_at, revoked, deactivated_at FROM agent"
         )
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|(a, b, c, d, e, f, g, h, i, j)| Self::map_row(a, b, c, d, e, f, g, h, i, j)).collect())
+        Ok(rows.into_iter().map(|(a, b, c, d, e, f, g, h)| Self::map_row(a, b, c, d, e, f, g, h)).collect())
     }
 
     async fn list_agents_with_last_seen(&self) -> Result<Vec<(String, u64)>> {

@@ -4,11 +4,9 @@ use axum::{
 };
 use core_watch::{dto::api::{ApiResponse, DefaultApiResponse}};
 use core_watch::logging::{warn, debug};
-use crate::domain::security::CryptoService;
 use crate::domain::state::AppState;
-use crate::domain::model::Agent;
 
-pub(crate) struct AuthenticatedAgent(pub(crate) Agent);
+pub(crate) struct AuthenticatedAgent(pub(crate) crate::domain::model::Agent);
 
 impl<S> FromRequestParts<S> for AuthenticatedAgent
 where
@@ -21,71 +19,28 @@ where
         async move {
             let app_state = AppState::from_ref(state);
 
-            let agent_id = parts.headers.get("X-Agent-Id")
-                .and_then(|v| v.to_str().ok())
-                .ok_or_else(|| {
-                    debug!("Auth attempt: missing X-Agent-Id header");
-                    ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
-                        success: false,
-                        message: Some("Missing X-Agent-Id header".to_string()),
-                    }))
-                })?;
+            let agent_id = get_agent_id_header(parts)?;
+            let agent_version = get_agent_version_header(parts);
+            let agent_secret = get_agent_secret_header(parts, agent_id)?;
 
-            let agent_secret = parts.headers.get("X-Agent-Secret")
-                .and_then(|v| v.to_str().ok())
-                .ok_or_else(|| {
-                    debug!("Auth attempt: missing X-Agent-Secret header for agent_id={}", agent_id);
-                    ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
-                        success: false,
-                        message: Some("Missing X-Agent-Secret header".to_string()),
-                    }))
-                })?;
-
-            let agent = match app_state.agent_service.get_agent(agent_id).await {
-                Ok(Some(a)) => a,
-                Ok(None) => {
-                    warn!("Authentication failed: unknown agent_id={}", agent_id);
+            let agent = match app_state.agent_service.authenticate(agent_id, agent_secret).await {
+                Ok(a) => a,
+                Err(_) => {
+                    warn!("Authentication failed for agent_id={}", agent_id);
                     return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
                         success: false,
-                        message: Some("Unknown agent".to_string()),
-                    })));
-                }
-                Err(e) => {
-                    warn!("Database error during auth for agent_id={}: {}", agent_id, e);
-                    return Err(ApiResponse::Error(StatusCode::INTERNAL_SERVER_ERROR, axum::Json(DefaultApiResponse {
-                        success: false,
-                        message: Some("Internal error".to_string()),
+                        message: Some("Invalid agent credentials".to_string()),
                     })));
                 }
             };
 
-            let valid = CryptoService::verify(agent_secret, &agent.salt, &agent.secret_hash);
-            if !valid {
-                warn!("Authentication failed: invalid secret for agent={}", agent.name());
-                return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
-                    success: false,
-                    message: Some("Invalid agent secret".to_string()),
-                })));
-            }
-
-            if agent.revoked {
-                warn!("Authentication failed: agent {} is revoked", agent.name());
-                return Err(ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
-                    success: false,
-                    message: Some("Agent is revoked".to_string()),
-                })));
-            }
-
-            let agent = if let Some(claimed_version) = parts.headers.get("X-Agent-Version")
-                .and_then(|v| v.to_str().ok())
-                .filter(|v| !v.is_empty())
-            {
+            let agent = if let Some(claimed_version) = agent_version {
                 if claimed_version != agent.agent_version {
-                    if let Err(e) = app_state.agent_service.update_agent_version(&agent.agent_id, claimed_version).await {
+                    if let Err(e) = app_state.agent_service.update_agent_version(&agent.agent_id, &claimed_version).await {
                         warn!("Failed to update version for agent {}: {}", agent.name(), e);
                     }
                 }
-                Agent { agent_version: claimed_version.to_string(), ..agent }
+                crate::domain::model::Agent { agent_version: claimed_version, ..agent }
             } else {
                 agent
             };
@@ -106,4 +61,35 @@ where
             Ok(AuthenticatedAgent(agent))
         }
     }
+}
+
+fn get_agent_id_header(parts: &Parts) -> Result<&str, ApiResponse<DefaultApiResponse>> {
+    parts.headers.get("X-Agent-Id")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            debug!("Auth attempt: missing X-Agent-Id header");
+            ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
+                success: false,
+                message: Some("Missing X-Agent-Id header".to_string()),
+            }))
+        })
+}
+
+fn get_agent_version_header(parts: &Parts) -> Option<String> {
+    parts.headers.get("X-Agent-Version")
+        .and_then(|v| v.to_str().ok())
+        .filter(|v| !v.is_empty())
+        .map(|v| v.to_string())
+}
+
+fn get_agent_secret_header<'p>(parts: &'p Parts, agent_id: &str) -> Result<&'p str, ApiResponse<DefaultApiResponse>> {
+    parts.headers.get("X-Agent-Secret")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            debug!("Auth attempt: missing X-Agent-Secret header for agent_id={}", agent_id);
+            ApiResponse::Error(StatusCode::UNAUTHORIZED, axum::Json(DefaultApiResponse {
+                success: false,
+                message: Some("Missing X-Agent-Secret header".to_string()),
+            }))
+        })
 }

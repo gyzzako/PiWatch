@@ -171,20 +171,25 @@ impl AgentRepository for SqliteAgentRepository {
     }
 
     async fn create_install_token(&self, token: &InstallToken) -> Result<()> {
+        let now = Self::now_secs();
         sqlx::query(
-            "INSERT OR IGNORE INTO install_tokens (token_hash, salt) VALUES (?1, ?2)"
+            "INSERT OR IGNORE INTO install_tokens (token_hash, salt, expires_at, created_at) VALUES (?1, ?2, ?3, ?4)"
         )
         .bind(&token.token_hash)
         .bind(&token.salt)
+        .bind(token.expires_at.map(|e| e as i64))
+        .bind(now)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
     async fn validate_install_token(&self, plaintext: &str) -> Result<bool> {
+        let now = Self::now_secs();
         let tokens = sqlx::query_as::<_, (String, String)>(
-            "SELECT token_hash, salt FROM install_tokens"
+            "SELECT token_hash, salt FROM install_tokens WHERE expires_at IS NULL OR expires_at > ?1"
         )
+        .bind(now)
         .fetch_all(&self.pool)
         .await?;
 

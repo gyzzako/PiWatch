@@ -87,6 +87,7 @@ async fn setup_install_token(repo: &impl AgentRepository) {
         let install_token = InstallToken {
             token_hash: crate::domain::security::CryptoService::hash_with_salt(&token, &salt),
             salt,
+            expires_at: None,
         };
         if let Err(e) = repo.create_install_token(&install_token).await {
             error!("Failed to create install token: {}", e);

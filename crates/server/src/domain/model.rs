@@ -24,4 +24,5 @@ impl Agent {
 pub(crate) struct InstallToken {
     pub token_hash: String,
     pub salt: String,
+    pub expires_at: Option<u64>,
 }
